@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 class ApiException implements Exception {
   final String code;
@@ -12,6 +13,8 @@ class ApiException implements Exception {
   });
 
   factory ApiException.fromDioError(DioException error) {
+    debugPrint('[API ERROR] type=${error.type} message=${error.message} url=${error.requestOptions.uri}');
+    debugPrint('[API ERROR] response=${error.response?.statusCode} data=${error.response?.data}');
     final response = error.response;
     if (response != null) {
       final data = response.data;
@@ -55,6 +58,14 @@ class ApiClient {
     if (interceptors != null) {
       _dio.interceptors.addAll(interceptors);
     }
+    _dio.interceptors.add(LogInterceptor(
+      requestHeader: true,
+      requestBody: true,
+      responseHeader: false,
+      responseBody: true,
+      error: true,
+      logPrint: (msg) => debugPrint('[DIO] $msg'),
+    ));
   }
 
   Map<String, dynamic> _normalize(dynamic data) {

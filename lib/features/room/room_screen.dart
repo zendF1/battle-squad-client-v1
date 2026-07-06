@@ -9,6 +9,7 @@ import '../../core/providers/core_providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/ws/ws_events.dart';
 import '../../shared/models/room_models.dart';
+import '../match/match_provider.dart';
 import 'character_select.dart';
 import 'item_select.dart';
 import 'room_provider.dart';
@@ -35,6 +36,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
     final ws = ref.read(wsManagerProvider);
     _matchSub = ws.eventStream.listen((event) {
       if (event is MatchStartedEvent && mounted) {
+        ref.read(matchProvider.notifier).setInitialState(event.state);
         context.go('/match');
       }
     });

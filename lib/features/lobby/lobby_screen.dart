@@ -9,6 +9,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/ws/ws_events.dart';
 import '../../shared/models/room_models.dart';
 import '../../shared/widgets/app_card.dart';
+import '../match/match_provider.dart';
+import '../room/room_provider.dart';
 import 'create_room_dialog.dart';
 import 'lobby_provider.dart';
 
@@ -35,11 +37,11 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
 
     final ws = ref.read(wsManagerProvider);
 
-    final completer = Completer<String?>();
+    final completer = Completer<RoomState>();
     _wsSub?.cancel();
     _wsSub = ws.eventStream.listen((event) {
       if (event is RoomUpdatedEvent && !completer.isCompleted) {
-        completer.complete(event.room.roomId);
+        completer.complete(event.room);
       } else if (event is RoomErrorEvent && !completer.isCompleted) {
         completer.completeError(event.message);
       }
@@ -51,12 +53,13 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     });
 
     try {
-      final joinedRoomId = await completer.future.timeout(
+      final roomState = await completer.future.timeout(
         const Duration(seconds: 10),
         onTimeout: () => throw TimeoutException('Join room timed out'),
       );
-      if (mounted && joinedRoomId != null) {
-        context.push('/room/$joinedRoomId');
+      if (mounted) {
+        ref.read(roomProvider.notifier).setInitialState(roomState);
+        context.push('/room/${roomState.roomId}');
       }
     } catch (e) {
       if (mounted) {
@@ -84,12 +87,12 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     setState(() => _joining = true);
 
     final ws = ref.read(wsManagerProvider);
-    final completer = Completer<String?>();
+    final completer = Completer<RoomState>();
 
     _wsSub?.cancel();
     _wsSub = ws.eventStream.listen((event) {
       if (event is RoomUpdatedEvent && !completer.isCompleted) {
-        completer.complete(event.room.roomId);
+        completer.complete(event.room);
       } else if (event is RoomErrorEvent && !completer.isCompleted) {
         completer.completeError(event.message);
       }
@@ -102,18 +105,62 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     });
 
     try {
-      final roomId = await completer.future.timeout(
+      final roomState = await completer.future.timeout(
         const Duration(seconds: 10),
         onTimeout: () => throw TimeoutException('Create room timed out'),
       );
-      if (mounted && roomId != null) {
-        context.push('/room/$roomId');
+      if (mounted) {
+        ref.read(roomProvider.notifier).setInitialState(roomState);
+        context.push('/room/${roomState.roomId}');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to create room: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      _wsSub?.cancel();
+      _wsSub = null;
+      if (mounted) setState(() => _joining = false);
+    }
+  }
+
+  Future<void> _quickPlay() async {
+    if (_joining) return;
+    setState(() => _joining = true);
+
+    final ws = ref.read(wsManagerProvider);
+    final completer = Completer<MatchStartedEvent>();
+
+    _wsSub?.cancel();
+    _wsSub = ws.eventStream.listen((event) {
+      if (event is MatchStartedEvent && !completer.isCompleted) {
+        completer.complete(event);
+      } else if (event is RoomErrorEvent && !completer.isCompleted) {
+        completer.completeError(event.message);
+      }
+    });
+
+    ws.send('QuickPlay', {});
+
+    try {
+      final matchEvent = await completer.future.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => throw TimeoutException('Quick play timed out'),
+      );
+      if (mounted) {
+        ref.read(matchProvider.notifier).setInitialState(matchEvent.state);
+        context.go('/match');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to start quick play: $e'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -141,91 +188,48 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh, color: AppColors.textPrimary),
+            onPressed: () => ref.read(lobbyProvider.notifier).fetchRooms(),
+          ),
+          IconButton(
             icon: const Icon(Icons.settings, color: AppColors.textPrimary),
             onPressed: () => context.push('/settings'),
           ),
         ],
       ),
-      body: lobbyState.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.accent),
-        ),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, color: AppColors.error, size: 48),
-              const SizedBox(height: 16),
-              Text(
-                'Failed to load rooms',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                e.toString(),
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
-                onPressed: () => ref.read(lobbyProvider.notifier).fetchRooms(),
-              ),
-            ],
-          ),
-        ),
-        data: (rooms) => RefreshIndicator(
-          color: AppColors.accent,
-          onRefresh: () => ref.read(lobbyProvider.notifier).fetchRooms(),
-          child: rooms.isEmpty
-              ? ListView(
-                  children: [
-                    SizedBox(
-                      height: MediaQuery.of(context).size.height * 0.6,
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.meeting_room_outlined,
-                              color: AppColors.textSecondary,
-                              size: 64,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No rooms available',
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Create a room to start playing',
-                              style: TextStyle(color: AppColors.textSecondary),
-                            ),
-                          ],
-                        ),
+      body: lobbyState.isLoading && lobbyState.rooms.isEmpty
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.accent),
+            )
+          : lobbyState.error != null && lobbyState.rooms.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline,
+                          color: AppColors.error, size: 48),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Failed to load rooms',
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      Text(
+                        lobbyState.error!,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                        onPressed: () =>
+                            ref.read(lobbyProvider.notifier).fetchRooms(),
+                      ),
+                    ],
+                  ),
                 )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: rooms.length,
-                  itemBuilder: (context, index) {
-                    final room = rooms[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _RoomCard(
-                        room: room,
-                        onTap: _joining
-                            ? null
-                            : () => _joinRoom(room.roomId),
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ),
+              : _buildBody(context, lobbyState),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _joining ? null : _createRoom,
         backgroundColor: AppColors.accent,
@@ -243,6 +247,128 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
           'Create Room',
           style: TextStyle(color: AppColors.textPrimary),
         ),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, LobbyState lobbyState) {
+    return RefreshIndicator(
+      color: AppColors.accent,
+      onRefresh: () => ref.read(lobbyProvider.notifier).fetchRooms(),
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Quick Play button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _joining ? null : _quickPlay,
+              icon: const Icon(Icons.flash_on, color: AppColors.textPrimary),
+              label: const Text(
+                'Quick Play (Practice)',
+                style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Room list header
+          if (lobbyState.rooms.isNotEmpty) ...[
+            Text(
+              'Rooms (${lobbyState.total})',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          // Room list
+          if (lobbyState.rooms.isEmpty)
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.4,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.meeting_room_outlined,
+                      color: AppColors.textSecondary,
+                      size: 64,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No rooms available',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Create a room or use Quick Play',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else ...[
+            ...lobbyState.rooms.map(
+              (room) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _RoomCard(
+                  room: room,
+                  onTap: _joining ? null : () => _joinRoom(room.roomId),
+                ),
+              ),
+            ),
+            // Pagination
+            if (lobbyState.totalPages > 1)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 60),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left),
+                      color: lobbyState.page > 1
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary,
+                      onPressed: lobbyState.page > 1
+                          ? () => ref.read(lobbyProvider.notifier).prevPage()
+                          : null,
+                    ),
+                    Text(
+                      '${lobbyState.page} / ${lobbyState.totalPages}',
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right),
+                      color: lobbyState.page < lobbyState.totalPages
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary,
+                      onPressed: lobbyState.page < lobbyState.totalPages
+                          ? () => ref.read(lobbyProvider.notifier).nextPage()
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ],
       ),
     );
   }

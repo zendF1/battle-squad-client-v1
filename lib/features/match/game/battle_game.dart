@@ -2,6 +2,7 @@ import 'package:battle_squad_v1/features/match/game/explosion_component.dart';
 import 'package:battle_squad_v1/features/match/game/player_component.dart';
 import 'package:battle_squad_v1/features/match/game/projectile_component.dart';
 import 'package:battle_squad_v1/features/match/game/terrain_component.dart';
+import 'package:battle_squad_v1/features/match/game/trajectory_component.dart';
 import 'package:battle_squad_v1/shared/models/match_models.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
@@ -12,6 +13,7 @@ class BattleGame extends FlameGame {
   final Map<String, BattlePlayerState> initialPlayers;
 
   late TerrainComponent _terrainComponent;
+  late TrajectoryComponent _trajectoryComponent;
   final Map<String, PlayerComponent> playerComponents = {};
 
   static const double _gameWidth = 1600;
@@ -55,6 +57,10 @@ class BattleGame extends FlameGame {
       world.add(comp);
     }
 
+    // Add trajectory preview (always present, just hidden)
+    _trajectoryComponent = TrajectoryComponent();
+    world.add(_trajectoryComponent);
+
     await super.onLoad();
   }
 
@@ -74,8 +80,33 @@ class BattleGame extends FlameGame {
     );
   }
 
+  /// Show trajectory preview for aiming.
+  void showTrajectory({
+    required String playerId,
+    required double angleDeg,
+    required double power,
+    required int windDirection,
+    required int windPower,
+  }) {
+    final comp = playerComponents[playerId];
+    if (comp == null) return;
+    _trajectoryComponent.update2(
+      origin: comp.position.clone(),
+      angleDeg: angleDeg,
+      power: power,
+      windDirection: windDirection,
+      windPower: windPower,
+    );
+  }
+
+  /// Hide trajectory preview.
+  void hideTrajectory() {
+    _trajectoryComponent.hide();
+  }
+
   /// Animate a projectile result: fly path → explosion → terrain destruction.
   void animateProjectile(ProjectileResult result, VoidCallback onDone) {
+    hideTrajectory();
     if (result.path.isEmpty) {
       _handleExplosion(result, onDone);
       return;

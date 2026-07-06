@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:battle_squad_v1/core/auth/auth_provider.dart';
 import 'package:battle_squad_v1/core/theme/app_theme.dart';
 import 'package:battle_squad_v1/features/match/game/battle_game.dart';
@@ -20,6 +22,12 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
   BattleGame? _game;
   String? _lastProjectileId;
   bool _resultShown = false;
+
+  // Drag-to-shoot state
+  Offset? _dragStart;
+  double _dragAngle = 45;
+  int _dragPower = 50;
+  bool _isDragging = false;
 
   @override
   Widget build(BuildContext context) {
@@ -66,18 +74,31 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     }
 
     final notifier = ref.read(matchProvider.notifier);
+    final myPlayerId = ref.watch(authProvider).playerId;
+    final isMyTurn = matchData.state.currentPlayerId == myPlayerId;
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Game canvas
-          GameWidget(game: _game!),
+          // Game canvas with drag-to-shoot gesture
+          GestureDetector(
+            onPanStart: isMyTurn ? _onDragStart : null,
+            onPanUpdate: isMyTurn
+                ? (details) => _onDragUpdate(details, matchData, myPlayerId)
+                : null,
+            onPanEnd: isMyTurn
+                ? (details) => _onDragEnd(matchData, notifier, myPlayerId)
+                : null,
+            child: GameWidget(game: _game!),
+          ),
 
           // HUD overlay
           SafeArea(
             child: MatchHud(
               matchData: matchData,
+              dragAngle: _isDragging ? _dragAngle : null,
+              dragPower: _isDragging ? _dragPower : null,
               onShoot: (angle, power, mode, itemId) {
                 notifier.shoot(
                   angle: angle,
@@ -92,9 +113,95 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
               onEndTurn: notifier.endTurn,
             ),
           ),
+
+          // Drag aim indicator overlay
+          if (_isDragging)
+            Positioned(
+              bottom: 160,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.accent),
+                  ),
+                  child: Text(
+                    'Angle: ${_dragAngle.round()}°  Power: $_dragPower',
+                    style: const TextStyle(
+                      color: AppColors.accent,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
+  }
+
+  void _onDragStart(DragStartDetails details) {
+    _dragStart = details.localPosition;
+    setState(() => _isDragging = true);
+  }
+
+  void _onDragUpdate(
+      DragUpdateDetails details, MatchData matchData, String? myPlayerId) {
+    if (_dragStart == null || myPlayerId == null) return;
+
+    final dx = details.localPosition.dx - _dragStart!.dx;
+    final dy = details.localPosition.dy - _dragStart!.dy;
+    final distance = sqrt(dx * dx + dy * dy);
+
+    // Angle: drag down-right = shoot up-left, Angry Birds style
+    // atan2(-dy, -dx) gives the opposite direction of drag
+    var angleDeg = atan2(-(-dy), -dx) * 180 / pi;
+    angleDeg = angleDeg.clamp(0, 180);
+
+    // Power: based on drag distance (max ~200px = 100 power)
+    final power = (distance / 2).clamp(0, 100).round();
+
+    setState(() {
+      _dragAngle = angleDeg;
+      _dragPower = power;
+    });
+
+    // Update trajectory preview
+    _game?.showTrajectory(
+      playerId: myPlayerId,
+      angleDeg: angleDeg,
+      power: power.toDouble(),
+      windDirection: matchData.state.wind.direction,
+      windPower: matchData.state.wind.power,
+    );
+  }
+
+  void _onDragEnd(
+      MatchData matchData, MatchNotifier notifier, String? myPlayerId) {
+    if (!_isDragging || _dragPower < 5) {
+      // Too weak, cancel
+      _game?.hideTrajectory();
+      setState(() => _isDragging = false);
+      return;
+    }
+
+    // Fire with dragged angle/power
+    notifier.shoot(
+      angle: _dragAngle,
+      power: _dragPower,
+      actionMode: 'weapon',
+    );
+
+    _game?.hideTrajectory();
+    setState(() {
+      _isDragging = false;
+      _dragStart = null;
+    });
   }
 
   void _syncPlayersToGame(MatchData matchData) {

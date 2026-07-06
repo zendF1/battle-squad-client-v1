@@ -59,6 +59,10 @@ class MatchNotifier extends StateNotifier<MatchData?> {
     _sub = _wsManager.eventStream.listen(_handleEvent);
   }
 
+  void setInitialState(MatchState matchState) {
+    state = MatchData(state: matchState, turnTimeLeft: matchState.turnTimeLeft);
+  }
+
   void _handleEvent(WsEvent event) {
     switch (event) {
       case MatchStartedEvent(:final state):
@@ -116,7 +120,6 @@ class MatchNotifier extends StateNotifier<MatchData?> {
         state = current.copyWith(
           state: newMatchState,
           turnTimeLeft: 20,
-          clearLastProjectile: true,
           clearLastDamages: true,
         );
 

@@ -165,13 +165,15 @@ MatchState _$MatchStateFromJson(Map<String, dynamic> json) => MatchState(
         MapEntry(k, BattlePlayerState.fromJson(e as Map<String, dynamic>)),
   ),
   status: json['status'] as String,
-  turnOrder: (json['turnOrder'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
+  turnOrder:
+      (json['turnOrder'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+      [],
   turnTimeLeft: (json['turnTimeLeft'] as num).toInt(),
-  activeEffects: (json['activeEffects'] as List<dynamic>)
-      .map((e) => StatusEffect.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  activeEffects:
+      (json['activeEffects'] as List<dynamic>?)
+          ?.map((e) => StatusEffect.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      [],
 );
 
 Map<String, dynamic> _$MatchStateToJson(MatchState instance) =>

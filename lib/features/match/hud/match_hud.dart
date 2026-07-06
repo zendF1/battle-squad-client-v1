@@ -1,6 +1,7 @@
+import 'dart:async';
+
 import 'package:battle_squad_v1/core/auth/auth_provider.dart';
 import 'package:battle_squad_v1/core/theme/app_theme.dart';
-import 'package:battle_squad_v1/features/match/hud/angle_power_control.dart';
 import 'package:battle_squad_v1/features/match/hud/item_skill_bar.dart';
 import 'package:battle_squad_v1/features/match/hud/wind_indicator.dart';
 import 'package:battle_squad_v1/features/match/match_provider.dart';
@@ -14,6 +15,8 @@ class MatchHud extends ConsumerStatefulWidget {
       onShoot;
   final void Function(String direction, double? targetX) onMove;
   final VoidCallback onEndTurn;
+  final double? dragAngle;
+  final int? dragPower;
 
   const MatchHud({
     super.key,
@@ -21,6 +24,8 @@ class MatchHud extends ConsumerStatefulWidget {
     required this.onShoot,
     required this.onMove,
     required this.onEndTurn,
+    this.dragAngle,
+    this.dragPower,
   });
 
   @override
@@ -28,8 +33,6 @@ class MatchHud extends ConsumerStatefulWidget {
 }
 
 class _MatchHudState extends ConsumerState<MatchHud> {
-  double _angle = 45;
-  int _power = 50;
   String _actionMode = 'weapon';
   String? _activeItemId;
 
@@ -79,39 +82,57 @@ class _MatchHudState extends ConsumerState<MatchHud> {
                       setState(() => _activeItemId = id),
                 ),
                 const SizedBox(height: 8),
-                // Main controls row
+                // Controls row: hold-to-move + drag hint + end turn
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    // Move left button
-                    _MoveButton(
+                    // Move left (hold)
+                    _HoldMoveButton(
                       icon: Icons.arrow_back_ios,
-                      label: 'Move',
-                      onTap: () => widget.onMove('left', null),
+                      onMove: () {
+                        final pos = myPlayer?.position;
+                        if (pos == null) return;
+                        widget.onMove('left', pos.x - 10);
+                      },
                     ),
                     const SizedBox(width: 8),
-                    // Angle / power / fire
+                    // Drag-to-shoot hint
                     Expanded(
-                      child: AnglePowerControl(
-                        enabled: isMyTurn,
-                        angle: _angle,
-                        power: _power,
-                        onAngleChanged: (v) => setState(() => _angle = v),
-                        onPowerChanged: (v) => setState(() => _power = v),
-                        onShoot: () => widget.onShoot(
-                          _angle,
-                          _power,
-                          _actionMode,
-                          _activeItemId,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface.withValues(alpha: 0.9),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.primary),
+                        ),
+                        child: Center(
+                          child: Text(
+                            widget.dragAngle != null
+                                ? '${widget.dragAngle!.round()}°  PWR: ${widget.dragPower}'
+                                : 'Drag on screen to aim & shoot',
+                            style: TextStyle(
+                              color: widget.dragAngle != null
+                                  ? AppColors.accent
+                                  : AppColors.textSecondary,
+                              fontSize: 12,
+                              fontWeight: widget.dragAngle != null
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // Move right button
-                    _MoveButton(
+                    // Move right (hold)
+                    _HoldMoveButton(
                       icon: Icons.arrow_forward_ios,
-                      label: 'Move',
-                      onTap: () => widget.onMove('right', null),
+                      onMove: () {
+                        final pos = myPlayer?.position;
+                        if (pos == null) return;
+                        widget.onMove('right', pos.x + 10);
+                      },
                     ),
                     const SizedBox(width: 8),
                     // End turn button
@@ -176,7 +197,6 @@ class _TopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Turn indicator
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -201,13 +221,8 @@ class _TopBar extends StatelessWidget {
               ],
             ),
           ),
-
-          // Timer
           _TimerBadge(timeLeft: timeLeft, isMyTurn: isMyTurn),
-
           const SizedBox(width: 12),
-
-          // Wind indicator
           WindIndicator(wind: wind),
         ],
       ),
@@ -249,24 +264,46 @@ class _TimerBadge extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Move button
+// Hold-to-move button — fires repeatedly while held
 // ---------------------------------------------------------------------------
 
-class _MoveButton extends StatelessWidget {
+class _HoldMoveButton extends StatefulWidget {
   final IconData icon;
-  final String label;
-  final VoidCallback onTap;
+  final VoidCallback onMove;
 
-  const _MoveButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
+  const _HoldMoveButton({required this.icon, required this.onMove});
+
+  @override
+  State<_HoldMoveButton> createState() => _HoldMoveButtonState();
+}
+
+class _HoldMoveButtonState extends State<_HoldMoveButton> {
+  Timer? _timer;
+
+  void _startMoving() {
+    widget.onMove();
+    _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      widget.onMove();
+    });
+  }
+
+  void _stopMoving() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTapDown: (_) => _startMoving(),
+      onTapUp: (_) => _stopMoving(),
+      onTapCancel: _stopMoving,
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
@@ -274,7 +311,7 @@ class _MoveButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: AppColors.primary),
         ),
-        child: Icon(icon, color: AppColors.textPrimary, size: 22),
+        child: Icon(widget.icon, color: AppColors.textPrimary, size: 22),
       ),
     );
   }

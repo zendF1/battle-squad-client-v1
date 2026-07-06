@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'package:battle_squad_v1/shared/models/match_models.dart';
 import 'package:battle_squad_v1/shared/models/room_models.dart';
 
@@ -175,7 +177,8 @@ WsEvent? parseWsEvent(WsEnvelope envelope) {
       default:
         return null;
     }
-  } catch (_) {
+  } catch (e, st) {
+    debugPrint('[WS] parseWsEvent error for "${envelope.event}": $e\n$st');
     return null;
   }
 }

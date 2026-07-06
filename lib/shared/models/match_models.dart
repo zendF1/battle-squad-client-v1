@@ -178,8 +178,10 @@ class MatchState {
   final WindState wind;
   final Map<String, BattlePlayerState> players;
   final String status;
+  @JsonKey(defaultValue: [])
   final List<String> turnOrder;
   final int turnTimeLeft;
+  @JsonKey(defaultValue: [])
   final List<StatusEffect> activeEffects;
 
   MatchState({

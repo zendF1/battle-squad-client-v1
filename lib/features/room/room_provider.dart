@@ -20,6 +20,10 @@ class RoomNotifier extends StateNotifier<RoomState?> {
     }
   }
 
+  void setInitialState(RoomState roomState) {
+    state = roomState;
+  }
+
   void selectCharacter(String characterId) {
     _ref.read(wsManagerProvider).send('SelectCharacter', {'characterId': characterId});
   }
@@ -42,6 +46,7 @@ class RoomNotifier extends StateNotifier<RoomState?> {
 
   void leave() {
     _ref.read(wsManagerProvider).send('Leave', {});
+    state = null;
   }
 
   @override

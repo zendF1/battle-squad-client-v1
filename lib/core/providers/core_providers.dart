@@ -4,8 +4,8 @@ import '../api/api_interceptor.dart';
 import '../auth/token_storage.dart';
 import '../ws/ws_manager.dart';
 
-const _apiBaseUrl = 'http://localhost:8082';
-const _wsBaseUrl = 'ws://localhost:8083';
+const _apiBaseUrl = 'http://localhost:9090';
+const _wsBaseUrl = 'ws://localhost:9091';
 
 final tokenStorageProvider = Provider<TokenStorage>((ref) => TokenStorage());
 

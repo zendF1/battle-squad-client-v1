@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../auth/token_storage.dart';
 
 class AuthInterceptor extends Interceptor {
@@ -25,11 +26,10 @@ class AuthInterceptor extends Interceptor {
   }
 
   @override
-  void onRequest(
-    RequestOptions options,
-    RequestInterceptorHandler handler,
-  ) async {
-    final token = await tokenStorage.accessToken;
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    // Use cached token synchronously — no async needed
+    final token = tokenStorage.cachedAccessToken;
+    debugPrint('[AUTH] ${options.method} ${options.path} token=${token != null ? "yes" : "no"}');
     if (token != null && token.isNotEmpty) {
       options.headers['Authorization'] = 'Bearer $token';
     }
@@ -41,7 +41,7 @@ class AuthInterceptor extends Interceptor {
     if (err.response?.statusCode == 401 && !_isRefreshing) {
       _isRefreshing = true;
       try {
-        final refreshToken = await tokenStorage.refreshToken;
+        final refreshToken = tokenStorage.cachedRefreshToken;
         if (refreshToken == null || refreshToken.isEmpty) {
           _isRefreshing = false;
           await onRefreshFailed();
@@ -49,39 +49,26 @@ class AuthInterceptor extends Interceptor {
           return;
         }
 
-        final response = await _refreshDio.post<Map<String, dynamic>>(
+        final response = await _refreshDio.post<dynamic>(
           '/auth/refresh',
-          data: {'refresh_token': refreshToken},
+          data: {'refreshToken': refreshToken},
         );
 
-        final data = response.data;
+        final data = response.data as Map<String, dynamic>?;
         if (data != null) {
-          final newAccessToken = data['access_token'] as String?;
-          final newRefreshToken = data['refresh_token'] as String?;
-          final playerId = data['player_id'] as String?;
+          final newAccess = data['accessToken'] as String? ?? data['access_token'] as String?;
+          final newRefresh = data['refreshToken'] as String? ?? data['refresh_token'] as String?;
 
-          if (newAccessToken != null &&
-              newRefreshToken != null &&
-              playerId != null) {
+          if (newAccess != null && newRefresh != null) {
             await tokenStorage.saveTokens(
-              accessToken: newAccessToken,
-              refreshToken: newRefreshToken,
-              playerId: playerId,
+              accessToken: newAccess,
+              refreshToken: newRefresh,
+              playerId: tokenStorage.cachedPlayerId ?? '',
             );
 
-            // Retry the original request with the new token
             final retryOptions = err.requestOptions;
-            retryOptions.headers['Authorization'] = 'Bearer $newAccessToken';
-
-            final retryDio = Dio(
-              BaseOptions(
-                baseUrl: baseUrl,
-                connectTimeout: retryOptions.connectTimeout,
-                receiveTimeout: retryOptions.receiveTimeout,
-              ),
-            );
-
-            final retryResponse = await retryDio.fetch(retryOptions);
+            retryOptions.headers['Authorization'] = 'Bearer $newAccess';
+            final retryResponse = await _refreshDio.fetch(retryOptions);
             _isRefreshing = false;
             handler.resolve(retryResponse);
             return;

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:battle_squad_v1/core/ws/ws_events.dart';
+import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 // ---------------------------------------------------------------------------
@@ -48,8 +49,13 @@ class WsManager {
   }
 
   void send(String event, Map<String, dynamic> data) {
+    debugPrint('[WS] send: $event state=$_state channel=${_channel != null}');
+    if (_channel == null) {
+      debugPrint('[WS] WARNING: no channel, message dropped!');
+      return;
+    }
     final envelope = WsEnvelope(event: event, data: data);
-    _channel?.sink.add(jsonEncode(envelope.toJson()));
+    _channel!.sink.add(jsonEncode(envelope.toJson()));
   }
 
   void disconnect() {
@@ -73,43 +79,50 @@ class WsManager {
   void _doConnect() {
     if (_token == null) return;
 
+    final url = '$baseUrl/ws?token=$_token';
+    debugPrint('[WS] connecting to $url');
     _setState(WsConnectionState.connecting);
 
     try {
-      _channel =
-          WebSocketChannel.connect(Uri.parse('$baseUrl/ws?token=$_token'));
+      _channel = WebSocketChannel.connect(Uri.parse(url));
 
       _subscription = _channel!.stream.listen(
         _onMessage,
-        onError: (_) => _onDisconnected(),
-        onDone: _onDisconnected,
+        onError: (e) {
+          debugPrint('[WS] stream error: $e');
+          _onDisconnected();
+        },
+        onDone: () {
+          debugPrint('[WS] stream done (disconnected)');
+          _onDisconnected();
+        },
         cancelOnError: true,
       );
 
-      // Mark connected immediately after setting up the subscription.
-      // The actual WebSocket handshake is async; treat first successful listen
-      // as connected (standard pattern for web_socket_channel).
       final wasReconnect = _attempts > 0;
       _attempts = 0;
       _setState(WsConnectionState.connected);
+      debugPrint('[WS] connected');
       if (wasReconnect) {
         _eventController.add(WsReconnectedEvent());
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[WS] connect error: $e');
       _onDisconnected();
     }
   }
 
   void _onMessage(dynamic raw) {
     try {
+      debugPrint('[WS] recv: ${(raw as String).substring(0, (raw as String).length > 100 ? 100 : (raw as String).length)}');
       final decoded = jsonDecode(raw as String) as Map<String, dynamic>;
       final envelope = WsEnvelope.fromJson(decoded);
       final event = parseWsEvent(envelope);
       if (event != null) {
         _eventController.add(event);
       }
-    } catch (_) {
-      // Malformed message — ignore silently.
+    } catch (e) {
+      debugPrint('[WS] parse error: $e');
     }
   }
 
