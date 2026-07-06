@@ -21,7 +21,7 @@ class RoomNotifier extends StateNotifier<RoomState?> {
   }
 
   void selectCharacter(String characterId) {
-    _ref.read(wsManagerProvider).send('SelectCharacter', {'character_id': characterId});
+    _ref.read(wsManagerProvider).send('SelectCharacter', {'characterId': characterId});
   }
 
   void selectItems(List<String> itemIds) {
@@ -29,7 +29,7 @@ class RoomNotifier extends StateNotifier<RoomState?> {
   }
 
   void toggleReady() {
-    _ref.read(wsManagerProvider).send('ToggleReady', {});
+    _ref.read(wsManagerProvider).send('Ready', {});
   }
 
   void startMatch() {
@@ -37,11 +37,11 @@ class RoomNotifier extends StateNotifier<RoomState?> {
   }
 
   void changeTeam(int teamId) {
-    _ref.read(wsManagerProvider).send('ChangeTeam', {'team_id': teamId});
+    _ref.read(wsManagerProvider).send('ChangeTeam', {'teamId': teamId});
   }
 
   void leave() {
-    _ref.read(wsManagerProvider).send('LeaveRoom', {});
+    _ref.read(wsManagerProvider).send('Leave', {});
   }
 
   @override

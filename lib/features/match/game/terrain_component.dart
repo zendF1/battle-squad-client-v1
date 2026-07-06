@@ -38,7 +38,7 @@ class TerrainData {
   double getTerrainHeight(int x) {
     switch (mapId) {
       case 'grassland_valley':
-        return 550 + 100 * sin(x * 0.003) - 40 * sin(x * 0.01);
+        return 550 + 100 * sin(x * 0.003) + 40 * sin(x * 0.01);
       case 'frozen_peak':
         return 500 + 120 * sin(x * 0.005) + 60 * cos(x * 0.015);
       case 'steel_base':

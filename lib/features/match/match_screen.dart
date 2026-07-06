@@ -59,6 +59,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
 
     // Show result dialog (deferred to after build)
     if (matchData.endedData != null && !_resultShown) {
+      _resultShown = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showResultDialog(matchData);
       });
@@ -123,8 +124,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
   }
 
   void _showResultDialog(MatchData matchData) {
-    if (_resultShown || matchData.endedData == null) return;
-    _resultShown = true;
+    if (matchData.endedData == null) return;
 
     final myPlayerId = ref.read(authProvider).playerId;
     showDialog<void>(
@@ -136,7 +136,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
         players: matchData.state.players,
         onBackToLobby: () {
           ref.read(matchProvider.notifier).leave();
-          if (mounted) context.go('/lobby');
+          if (mounted) context.go('/home');
         },
       ),
     );

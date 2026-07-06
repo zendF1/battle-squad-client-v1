@@ -232,6 +232,52 @@ class MatchNotifier extends StateNotifier<MatchData?> {
         if (current == null) return;
         state = current.copyWith(endedData: data);
 
+      case SkillUsedEvent(:final playerId, :final hp):
+        final current = state;
+        if (current == null) return;
+        if (hp != null) {
+          final updatedPlayers =
+              Map<String, BattlePlayerState>.from(current.state.players);
+          if (updatedPlayers.containsKey(playerId)) {
+            final p = updatedPlayers[playerId]!;
+            updatedPlayers[playerId] = BattlePlayerState(
+              playerId: p.playerId,
+              displayName: p.displayName,
+              teamId: p.teamId,
+              characterId: p.characterId,
+              hp: hp,
+              maxHp: p.maxHp,
+              defense: p.defense,
+              position: p.position,
+              moveEnergy: p.moveEnergy,
+              items: p.items,
+              statusEffects: p.statusEffects,
+              isAlive: p.isAlive,
+              isBot: p.isBot,
+              skillCooldown: p.skillCooldown,
+              damageDealt: p.damageDealt,
+              killCount: p.killCount,
+              shotsFired: p.shotsFired,
+              shotsHit: p.shotsHit,
+            );
+          }
+          final newMatchState = MatchState(
+            matchId: current.state.matchId,
+            roomId: current.state.roomId,
+            mode: current.state.mode,
+            mapId: current.state.mapId,
+            turnIndex: current.state.turnIndex,
+            currentPlayerId: current.state.currentPlayerId,
+            wind: current.state.wind,
+            players: updatedPlayers,
+            status: current.state.status,
+            turnOrder: current.state.turnOrder,
+            turnTimeLeft: current.state.turnTimeLeft,
+            activeEffects: current.state.activeEffects,
+          );
+          state = current.copyWith(state: newMatchState);
+        }
+
       case ItemUsedEvent(:final players, :final wind):
         final current = state;
         if (current == null) return;
@@ -251,6 +297,11 @@ class MatchNotifier extends StateNotifier<MatchData?> {
             activeEffects: current.state.activeEffects,
           );
           state = current.copyWith(state: newMatchState);
+        }
+
+      case WsReconnectedEvent():
+        if (state != null) {
+          reconnect();
         }
 
       default:

@@ -64,7 +64,9 @@ class BattlePlayerState {
   final int defense;
   final Vector2Model position;
   final int moveEnergy;
+  @JsonKey(defaultValue: [])
   final List<String> items;
+  @JsonKey(defaultValue: [])
   final List<StatusEffect> statusEffects;
   final bool isAlive;
   final bool isBot;

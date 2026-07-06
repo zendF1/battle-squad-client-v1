@@ -161,10 +161,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
-    try {
-      await _apiClient.post('/auth/logout');
-    } catch (_) {
-      // Ignore errors on logout
+    final rt = await _tokenStorage.refreshToken;
+    if (rt != null) {
+      try {
+        await _apiClient.post('/auth/logout', data: {'refreshToken': rt});
+      } catch (_) {
+        // Ignore errors on logout
+      }
     }
 
     _wsManager.disconnect();

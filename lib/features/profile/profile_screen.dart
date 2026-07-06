@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../shared/models/player_models.dart';
 import '../../shared/widgets/currency_display.dart';
 import '../../shared/widgets/error_snackbar.dart';
 import 'inventory_grid.dart';
@@ -50,7 +51,7 @@ class ProfileScreen extends ConsumerWidget {
 }
 
 class _ProfileBody extends ConsumerWidget {
-  final dynamic profile;
+  final PlayerProfile profile;
 
   const _ProfileBody({required this.profile});
 

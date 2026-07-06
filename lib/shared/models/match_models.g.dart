@@ -52,10 +52,14 @@ BattlePlayerState _$BattlePlayerStateFromJson(Map<String, dynamic> json) =>
       defense: (json['defense'] as num).toInt(),
       position: Vector2Model.fromJson(json['position'] as Map<String, dynamic>),
       moveEnergy: (json['moveEnergy'] as num).toInt(),
-      items: (json['items'] as List<dynamic>).map((e) => e as String).toList(),
-      statusEffects: (json['statusEffects'] as List<dynamic>)
-          .map((e) => StatusEffect.fromJson(e as Map<String, dynamic>))
-          .toList(),
+      items:
+          (json['items'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+          [],
+      statusEffects:
+          (json['statusEffects'] as List<dynamic>?)
+              ?.map((e) => StatusEffect.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
       isAlive: json['isAlive'] as bool,
       isBot: json['isBot'] as bool,
       skillCooldown: (json['skillCooldown'] as num).toInt(),

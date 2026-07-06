@@ -46,7 +46,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     });
 
     ws.send('JoinRoom', {
-      'room_id': roomId,
+      'roomId': roomId,
       if (password != null) 'password': password,
     });
 
@@ -97,7 +97,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
 
     ws.send('CreateRoom', {
       'mode': result.mode,
-      'map_id': result.mapId,
+      'mapId': result.mapId,
       if (result.password != null) 'password': result.password,
     });
 

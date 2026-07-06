@@ -20,9 +20,9 @@ void main() {
     });
     test('destroyCircle clears terrain', () {
       final terrain = TerrainData(width: 1600, height: 900, mapId: 'grassland_valley');
-      expect(terrain.isSolid(100, 560), true);
-      terrain.destroyCircle(100, 560, 20);
-      expect(terrain.isSolid(100, 560), false);
+      expect(terrain.isSolid(100, 700), true);
+      terrain.destroyCircle(100, 700, 20);
+      expect(terrain.isSolid(100, 700), false);
     });
   });
 }
