@@ -57,16 +57,22 @@ class ApiClient {
     }
   }
 
+  Map<String, dynamic> _normalize(dynamic data) {
+    if (data is Map<String, dynamic>) return data;
+    if (data is List) return {'data': data};
+    return {};
+  }
+
   Future<Map<String, dynamic>> get(
     String path, {
     Map<String, dynamic>? queryParams,
   }) async {
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
+      final response = await _dio.get<dynamic>(
         path,
         queryParameters: queryParams,
       );
-      return response.data ?? {};
+      return _normalize(response.data);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
@@ -77,8 +83,8 @@ class ApiClient {
     Map<String, dynamic>? data,
   }) async {
     try {
-      final response = await _dio.post<Map<String, dynamic>>(path, data: data);
-      return response.data ?? {};
+      final response = await _dio.post<dynamic>(path, data: data);
+      return _normalize(response.data);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
@@ -89,8 +95,8 @@ class ApiClient {
     Map<String, dynamic>? data,
   }) async {
     try {
-      final response = await _dio.put<Map<String, dynamic>>(path, data: data);
-      return response.data ?? {};
+      final response = await _dio.put<dynamic>(path, data: data);
+      return _normalize(response.data);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

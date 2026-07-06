@@ -23,6 +23,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final authState = ref.read(authProvider);
       final status = authState.status;
       final location = state.uri.path;
+      debugPrint('[ROUTER] redirect: status=$status, location=$location');
 
       final isOnAuthScreen =
           location == '/splash' || location == '/login';

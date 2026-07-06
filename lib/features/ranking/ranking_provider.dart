@@ -16,7 +16,8 @@ final leaderboardProvider =
     '/rank/leaderboard',
     queryParams: {'page': page, 'limit': 50},
   );
-  final rawList = data['players'] as List<dynamic>? ??
+  final rawList = data['leaderboard'] as List<dynamic>? ??
+      data['players'] as List<dynamic>? ??
       data['data'] as List<dynamic>? ??
       [];
   return rawList

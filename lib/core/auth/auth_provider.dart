@@ -57,10 +57,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }) : super(const AuthState());
 
   Future<void> checkAuth() async {
+    debugPrint('[AUTH] checkAuth started');
     state = state.copyWith(loading: true, clearError: true);
 
-    final hasTokens = await _tokenStorage.hasTokens;
-    if (!hasTokens) {
+    try {
+      final hasTokens = await _tokenStorage.hasTokens;
+      debugPrint('[AUTH] hasTokens=$hasTokens');
+      if (!hasTokens) {
+        debugPrint('[AUTH] no tokens → unauthenticated');
+        state = state.copyWith(
+          status: AuthStatus.unauthenticated,
+          loading: false,
+        );
+        return;
+      }
+    } catch (e) {
+      debugPrint('[AUTH] hasTokens threw: $e');
       state = state.copyWith(
         status: AuthStatus.unauthenticated,
         loading: false,
