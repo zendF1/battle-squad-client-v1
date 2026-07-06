@@ -32,7 +32,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (status == AuthStatus.unauthenticated) {
-        return isOnAuthScreen ? null : '/login';
+        return location == '/login' ? null : '/login';
       }
 
       if (status == AuthStatus.authenticated) {
