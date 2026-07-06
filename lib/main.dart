@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/router/app_router.dart';
+import 'core/theme/app_theme.dart';
+
 void main() {
   runApp(const ProviderScope(child: BattleSquadApp()));
 }
 
-class BattleSquadApp extends StatelessWidget {
+class BattleSquadApp extends ConsumerWidget {
   const BattleSquadApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(routerProvider);
+    return MaterialApp.router(
       title: 'Battle Squad',
-      theme: ThemeData.dark(),
-      home: const Scaffold(
-        body: Center(child: Text('Battle Squad')),
-      ),
+      theme: AppTheme.darkTheme,
+      routerConfig: router,
     );
   }
 }
