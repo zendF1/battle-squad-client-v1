@@ -8,7 +8,10 @@ class TokenStorage {
   final FlutterSecureStorage _storage;
 
   TokenStorage({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+      : _storage = storage ??
+            const FlutterSecureStorage(
+              webOptions: WebOptions.defaultOptions,
+            );
 
   Future<String?> get accessToken => _storage.read(key: _keyAccessToken);
 
