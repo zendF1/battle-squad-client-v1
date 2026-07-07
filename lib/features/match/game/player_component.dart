@@ -49,12 +49,8 @@ class PlayerComponent extends PositionComponent {
     final hasGround = terrainData.isSolid(ix, iy);
 
     if (hasGround && !_isFalling) {
-      // Standing on solid ground — anti-desync snap to server Y
-      if (_serverTargetY != null &&
-          (_serverTargetY! - position.y).abs() > 1) {
-        position.y = _serverTargetY!;
-        _serverTargetY = null;
-      }
+      // Standing on solid ground — wait for terrain to be destroyed before falling.
+      // Don't snap to serverTargetY here; gravity handles the fall naturally.
       return;
     }
 
