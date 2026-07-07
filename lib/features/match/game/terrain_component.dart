@@ -57,24 +57,34 @@ class TerrainData {
   }
 
   void destroyCircle(double cx, double cy, double radius) {
-    final r = radius.ceil();
-    final x0 = (cx - r).floor();
-    final x1 = (cx + r).ceil();
-    final y0 = (cy - r).floor();
-    final y1 = (cy + r).ceil();
+    // Round center to match server-side DestroyCircle behavior
+    final icx = cx.round();
+    final icy = cy.round();
+    final ir = radius.round();
     final r2 = radius * radius;
 
-    for (int y = y0; y <= y1; y++) {
-      for (int x = x0; x <= x1; x++) {
+    for (int y = icy - ir; y <= icy + ir; y++) {
+      for (int x = icx - ir; x <= icx + ir; x++) {
         if (x < 0 || x >= width || y < 0 || y >= height) continue;
-        final dx = x - cx;
-        final dy = y - cy;
+        final dx = (x - icx).toDouble();
+        final dy = (y - icy).toDouble();
         if (dx * dx + dy * dy <= r2) {
           _mask[y * width + x] = 0;
         }
       }
     }
     markDirty();
+  }
+
+  /// Find the first solid Y scanning downward from [startY] at column [x].
+  /// Returns [height] if no solid pixel is found (fell off map).
+  int getLandingY(int x, int startY) {
+    if (x < 0 || x >= width) return height;
+    if (startY < 0) startY = 0;
+    for (int y = startY; y < height; y++) {
+      if (_mask[y * width + x] == 1) return y;
+    }
+    return height;
   }
 
   bool get isDirty => _needsRepaint;
@@ -117,24 +127,34 @@ class TerrainComponent extends PositionComponent {
       Paint()..color = _skyColor,
     );
 
-    // Terrain pixels — draw column rects for efficiency
+    // Terrain pixels — draw contiguous solid segments per column
     final terrainPaint = Paint()..color = _terrainColor;
     for (int x = 0; x < terrainData.width; x++) {
-      // Find topmost solid pixel in this column
-      int topSolid = terrainData.height;
+      int? segStart;
       for (int y = 0; y < terrainData.height; y++) {
         if (terrainData.isSolid(x, y)) {
-          topSolid = y;
-          break;
+          segStart ??= y;
+        } else if (segStart != null) {
+          canvas.drawRect(
+            Rect.fromLTWH(
+              x.toDouble(),
+              segStart.toDouble(),
+              1,
+              (y - segStart).toDouble(),
+            ),
+            terrainPaint,
+          );
+          segStart = null;
         }
       }
-      if (topSolid < terrainData.height) {
+      // Close segment that extends to bottom
+      if (segStart != null) {
         canvas.drawRect(
           Rect.fromLTWH(
             x.toDouble(),
-            topSolid.toDouble(),
+            segStart.toDouble(),
             1,
-            (terrainData.height - topSolid).toDouble(),
+            (terrainData.height - segStart).toDouble(),
           ),
           terrainPaint,
         );

@@ -6,7 +6,7 @@ import 'package:battle_squad_v1/features/match/game/trajectory_component.dart';
 import 'package:battle_squad_v1/shared/models/match_models.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
-import 'package:flutter/material.dart';
+
 
 class BattleGame extends FlameGame {
   final String mapId;
@@ -40,11 +40,12 @@ class BattleGame extends FlameGame {
     _terrainComponent = TerrainComponent(terrainData);
     world.add(_terrainComponent);
 
-    // Add player components
+    // Add player components (with terrain reference for client-side gravity)
     for (final entry in initialPlayers.entries) {
       final ps = entry.value;
       final comp = PlayerComponent(
         playerId: ps.playerId,
+        terrainData: terrainData,
         displayName: ps.displayName,
         characterId: ps.characterId,
         teamId: ps.teamId,
@@ -64,19 +65,22 @@ class BattleGame extends FlameGame {
     await super.onLoad();
   }
 
-  /// Update a player's state visually.
+  /// Update a player's state from server.
+  /// X, HP, isAlive are applied immediately. Y is stored for gravity anti-desync.
   void updatePlayer(
     String playerId, {
     int? hp,
     bool? isAlive,
-    Vector2? position,
+    double? x,
+    double? serverY,
   }) {
     final comp = playerComponents[playerId];
     if (comp == null) return;
     comp.updateFromState(
       newHp: hp ?? comp.hp,
       alive: isAlive ?? comp.isAlive,
-      newPos: position,
+      newX: x,
+      serverY: serverY,
     );
   }
 
@@ -105,21 +109,22 @@ class BattleGame extends FlameGame {
   }
 
   /// Animate a projectile result: fly path → explosion → terrain destruction.
-  void animateProjectile(ProjectileResult result, VoidCallback onDone) {
+  /// Players fall automatically via client-side gravity when terrain is destroyed.
+  void animateProjectile(ProjectileResult result) {
     hideTrajectory();
     if (result.path.isEmpty) {
-      _handleExplosion(result, onDone);
+      _handleExplosion(result);
       return;
     }
 
     final projectile = ProjectileComponent(
       path: result.path,
-      onComplete: () => _handleExplosion(result, onDone),
+      onComplete: () => _handleExplosion(result),
     );
     world.add(projectile);
   }
 
-  void _handleExplosion(ProjectileResult result, VoidCallback onDone) {
+  void _handleExplosion(ProjectileResult result) {
     final ep = result.explosionPoint;
     final center = ep != null
         ? Vector2(ep.x, ep.y)
@@ -137,11 +142,12 @@ class BattleGame extends FlameGame {
         result.explosionRadius,
       );
     }
+    // Terrain mask updated → PlayerComponent.update() detects lost support → falls with gravity
 
     final explosion = ExplosionComponent(
       center: center,
       radius: result.explosionRadius.clamp(10, 120),
-      onComplete: onDone,
+      onComplete: () {},
     );
     world.add(explosion);
   }

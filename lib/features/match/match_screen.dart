@@ -59,11 +59,11 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
       initialPlayers: matchData.state.players,
     );
 
-    // Sync player states from provider into game
-    _syncPlayersToGame(matchData);
-
     // Animate new projectile if available
     _handleProjectile(matchData);
+
+    // Sync player states (X, HP, isAlive immediately; Y stored for gravity anti-desync)
+    _syncPlayersToGame(matchData);
 
     // Show result dialog (deferred to after build)
     if (matchData.endedData != null && !_resultShown) {
@@ -214,7 +214,8 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
         entry.key,
         hp: ps.hp,
         isAlive: ps.isAlive,
-        position: Vector2(ps.position.x, ps.position.y),
+        x: ps.position.x,
+        serverY: ps.position.y,
       );
     }
   }
@@ -225,9 +226,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     if (proj.projectileId == _lastProjectileId) return;
 
     _lastProjectileId = proj.projectileId;
-    _game?.animateProjectile(proj, () {
-      // Animation complete — state already reflects damage from PlayerDamagedEvent
-    });
+    _game?.animateProjectile(proj);
   }
 
   void _showResultDialog(MatchData matchData) {
