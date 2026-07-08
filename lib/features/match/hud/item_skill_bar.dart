@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 class ItemSkillBar extends StatelessWidget {
   final List<String> items;
-  final int skillCooldown;
+  final int skillEnergy; // 0-100, skill usable at 100
   final String? activeItemId;
   final String actionMode; // 'weapon' | 'skill' | item id
   final ValueChanged<String> onActionModeChanged;
@@ -12,7 +12,7 @@ class ItemSkillBar extends StatelessWidget {
   const ItemSkillBar({
     super.key,
     required this.items,
-    required this.skillCooldown,
+    required this.skillEnergy,
     required this.activeItemId,
     required this.actionMode,
     required this.onActionModeChanged,
@@ -45,10 +45,10 @@ class ItemSkillBar extends StatelessWidget {
           // Skill button
           _ActionButton(
             icon: Icons.bolt,
-            label: skillCooldown > 0 ? 'CD:$skillCooldown' : 'Skill',
+            label: skillEnergy >= 100 ? 'Skill' : '$skillEnergy/100',
             isActive: actionMode == 'skill',
-            isDisabled: skillCooldown > 0,
-            onTap: skillCooldown > 0
+            isDisabled: skillEnergy < 100,
+            onTap: skillEnergy < 100
                 ? null
                 : () {
                     onActionModeChanged('skill');

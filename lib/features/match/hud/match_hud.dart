@@ -53,7 +53,7 @@ class _MatchHudState extends ConsumerState<MatchHud> {
         ? matchData.state.players[myPlayerId]
         : null;
     final myItems = myPlayer?.items ?? [];
-    final mySkillCooldown = myPlayer?.skillCooldown ?? 0;
+    final mySkillCooldown = myPlayer?.skillEnergy ?? 0;
     final timeLeft = matchData.turnTimeLeft;
 
     return Column(
@@ -78,7 +78,7 @@ class _MatchHudState extends ConsumerState<MatchHud> {
                 // Item / Skill bar
                 ItemSkillBar(
                   items: myItems,
-                  skillCooldown: mySkillCooldown,
+                  skillEnergy: mySkillCooldown,
                   activeItemId: widget.activeItemId,
                   actionMode: widget.actionMode,
                   onActionModeChanged: widget.onActionModeChanged,

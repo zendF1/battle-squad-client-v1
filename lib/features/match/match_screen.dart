@@ -7,6 +7,7 @@ import 'package:battle_squad_v1/features/match/game/battle_game.dart';
 import 'package:battle_squad_v1/features/match/hud/match_hud.dart';
 import 'package:battle_squad_v1/features/match/match_provider.dart';
 import 'package:battle_squad_v1/features/match/match_result_dialog.dart';
+import 'package:battle_squad_v1/shared/models/match_models.dart';
 import 'package:battle_squad_v1/shared/widgets/error_snackbar.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
@@ -265,12 +266,34 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
   }
 
   void _handleProjectile(MatchData matchData) {
-    final proj = matchData.lastProjectile;
-    if (proj == null) return;
-    if (proj.projectileId == _lastProjectileId) return;
+    final queue = matchData.projectileQueue;
+    if (queue.isEmpty) return;
 
-    _lastProjectileId = proj.projectileId;
-    _game?.animateProjectile(proj);
+    // Find new projectiles we haven't animated yet
+    final newProjectiles = <ProjectileResult>[];
+    for (final proj in queue) {
+      if (proj.projectileId != _lastProjectileId) {
+        newProjectiles.add(proj);
+      }
+    }
+    if (newProjectiles.isEmpty) return;
+
+    _lastProjectileId = newProjectiles.last.projectileId;
+
+    // Stagger multiple projectiles (e.g. triple_shot) by 100ms each
+    for (int i = 0; i < newProjectiles.length; i++) {
+      final proj = newProjectiles[i];
+      if (i == 0) {
+        _game?.animateProjectile(proj);
+      } else {
+        Future.delayed(Duration(milliseconds: 100 * i), () {
+          _game?.animateProjectile(proj);
+        });
+      }
+    }
+
+    // Clear the queue
+    ref.read(matchProvider.notifier).clearProjectileQueue();
   }
 
   void _showResultDialog(MatchData matchData) {

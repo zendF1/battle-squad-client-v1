@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class MatchData {
   final MatchState state;
   final ProjectileResult? lastProjectile;
+  final List<ProjectileResult> projectileQueue;
   final List<DamageEntry>? lastDamages;
   final int turnTimeLeft;
   final MatchEndedData? endedData;
@@ -20,6 +21,7 @@ class MatchData {
   const MatchData({
     required this.state,
     this.lastProjectile,
+    this.projectileQueue = const [],
     this.lastDamages,
     this.turnTimeLeft = 20,
     this.endedData,
@@ -29,6 +31,7 @@ class MatchData {
     MatchState? state,
     ProjectileResult? lastProjectile,
     bool clearLastProjectile = false,
+    List<ProjectileResult>? projectileQueue,
     List<DamageEntry>? lastDamages,
     bool clearLastDamages = false,
     int? turnTimeLeft,
@@ -39,6 +42,7 @@ class MatchData {
       lastProjectile: clearLastProjectile
           ? null
           : (lastProjectile ?? this.lastProjectile),
+      projectileQueue: projectileQueue ?? this.projectileQueue,
       lastDamages:
           clearLastDamages ? null : (lastDamages ?? this.lastDamages),
       turnTimeLeft: turnTimeLeft ?? this.turnTimeLeft,
@@ -94,7 +98,7 @@ class MatchNotifier extends StateNotifier<MatchData?> {
             statusEffects: p.statusEffects,
             isAlive: p.isAlive,
             isBot: p.isBot,
-            skillCooldown: p.skillCooldown,
+            skillEnergy: p.skillEnergy,
             damageDealt: p.damageDealt,
             killCount: p.killCount,
             shotsFired: p.shotsFired,
@@ -131,7 +135,10 @@ class MatchNotifier extends StateNotifier<MatchData?> {
       case ProjectileResultEvent(:final data):
         final current = state;
         if (current == null) return;
-        state = current.copyWith(lastProjectile: data);
+        state = current.copyWith(
+          lastProjectile: data,
+          projectileQueue: [...current.projectileQueue, data],
+        );
 
       case PlayerDamagedEvent(:final damages):
         final current = state;
@@ -156,7 +163,7 @@ class MatchNotifier extends StateNotifier<MatchData?> {
               statusEffects: p.statusEffects,
               isAlive: dmg.isAlive,
               isBot: p.isBot,
-              skillCooldown: p.skillCooldown,
+              skillEnergy: p.skillEnergy,
               damageDealt: p.damageDealt,
               killCount: p.killCount,
               shotsFired: p.shotsFired,
@@ -206,7 +213,7 @@ class MatchNotifier extends StateNotifier<MatchData?> {
             statusEffects: p.statusEffects,
             isAlive: p.isAlive,
             isBot: p.isBot,
-            skillCooldown: p.skillCooldown,
+            skillEnergy: p.skillEnergy,
             damageDealt: p.damageDealt,
             killCount: p.killCount,
             shotsFired: p.shotsFired,
@@ -257,7 +264,7 @@ class MatchNotifier extends StateNotifier<MatchData?> {
               statusEffects: p.statusEffects,
               isAlive: p.isAlive,
               isBot: p.isBot,
-              skillCooldown: p.skillCooldown,
+              skillEnergy: p.skillEnergy,
               damageDealt: p.damageDealt,
               killCount: p.killCount,
               shotsFired: p.shotsFired,
@@ -350,6 +357,12 @@ class MatchNotifier extends StateNotifier<MatchData?> {
 
   void endTurn() {
     _wsManager.send('EndTurn', {});
+  }
+
+  void clearProjectileQueue() {
+    final current = state;
+    if (current == null) return;
+    state = current.copyWith(projectileQueue: []);
   }
 
   void reconnect() {

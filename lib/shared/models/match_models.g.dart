@@ -62,7 +62,7 @@ BattlePlayerState _$BattlePlayerStateFromJson(Map<String, dynamic> json) =>
           [],
       isAlive: json['isAlive'] as bool,
       isBot: json['isBot'] as bool,
-      skillCooldown: (json['skillCooldown'] as num).toInt(),
+      skillEnergy: (json['skillEnergy'] as num).toInt(),
       damageDealt: (json['damageDealt'] as num).toInt(),
       killCount: (json['killCount'] as num).toInt(),
       shotsFired: (json['shotsFired'] as num).toInt(),
@@ -84,7 +84,7 @@ Map<String, dynamic> _$BattlePlayerStateToJson(BattlePlayerState instance) =>
       'statusEffects': instance.statusEffects,
       'isAlive': instance.isAlive,
       'isBot': instance.isBot,
-      'skillCooldown': instance.skillCooldown,
+      'skillEnergy': instance.skillEnergy,
       'damageDealt': instance.damageDealt,
       'killCount': instance.killCount,
       'shotsFired': instance.shotsFired,
@@ -193,16 +193,32 @@ Map<String, dynamic> _$MatchStateToJson(MatchState instance) =>
     };
 
 MatchReward _$MatchRewardFromJson(Map<String, dynamic> json) => MatchReward(
-  exp: (json['exp'] as num).toInt(),
-  coins: (json['coins'] as num).toInt(),
-  gemReward: (json['gemReward'] as num?)?.toInt(),
+  expGained: (json['expGained'] as num).toInt(),
+  coinGained: (json['coinGained'] as num).toInt(),
+  ratingChange: (json['ratingChange'] as num?)?.toInt() ?? 0,
+  newRating: (json['newRating'] as num?)?.toInt() ?? 0,
+  newTier: json['newTier'] as String?,
+  newDivision: (json['newDivision'] as num?)?.toInt() ?? 0,
+  levelUp: json['levelUp'] as bool? ?? false,
+  newLevel: (json['newLevel'] as num?)?.toInt() ?? 0,
+  charLevelUp: json['charLevelUp'] as bool? ?? false,
+  charNewLevel: (json['charNewLevel'] as num?)?.toInt() ?? 0,
+  charLevelsGained: (json['charLevelsGained'] as num?)?.toInt() ?? 0,
 );
 
 Map<String, dynamic> _$MatchRewardToJson(MatchReward instance) =>
     <String, dynamic>{
-      'exp': instance.exp,
-      'coins': instance.coins,
-      'gemReward': instance.gemReward,
+      'expGained': instance.expGained,
+      'coinGained': instance.coinGained,
+      'ratingChange': instance.ratingChange,
+      'newRating': instance.newRating,
+      'newTier': instance.newTier,
+      'newDivision': instance.newDivision,
+      'levelUp': instance.levelUp,
+      'newLevel': instance.newLevel,
+      'charLevelUp': instance.charLevelUp,
+      'charNewLevel': instance.charNewLevel,
+      'charLevelsGained': instance.charLevelsGained,
     };
 
 MatchEndedData _$MatchEndedDataFromJson(Map<String, dynamic> json) =>

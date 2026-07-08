@@ -70,7 +70,7 @@ class BattlePlayerState {
   final List<StatusEffect> statusEffects;
   final bool isAlive;
   final bool isBot;
-  final int skillCooldown;
+  final int skillEnergy;
   final int damageDealt;
   final int killCount;
   final int shotsFired;
@@ -90,7 +90,7 @@ class BattlePlayerState {
     required this.statusEffects,
     required this.isAlive,
     required this.isBot,
-    required this.skillCooldown,
+    required this.skillEnergy,
     required this.damageDealt,
     required this.killCount,
     required this.shotsFired,
@@ -206,14 +206,38 @@ class MatchState {
 
 @JsonSerializable()
 class MatchReward {
-  final int exp;
-  final int coins;
-  final int? gemReward;
+  final int expGained;
+  final int coinGained;
+  @JsonKey(defaultValue: 0)
+  final int ratingChange;
+  @JsonKey(defaultValue: 0)
+  final int newRating;
+  final String? newTier;
+  @JsonKey(defaultValue: 0)
+  final int newDivision;
+  @JsonKey(defaultValue: false)
+  final bool levelUp;
+  @JsonKey(defaultValue: 0)
+  final int newLevel;
+  @JsonKey(defaultValue: false)
+  final bool charLevelUp;
+  @JsonKey(defaultValue: 0)
+  final int charNewLevel;
+  @JsonKey(defaultValue: 0)
+  final int charLevelsGained;
 
   MatchReward({
-    required this.exp,
-    required this.coins,
-    this.gemReward,
+    required this.expGained,
+    required this.coinGained,
+    this.ratingChange = 0,
+    this.newRating = 0,
+    this.newTier,
+    this.newDivision = 0,
+    this.levelUp = false,
+    this.newLevel = 0,
+    this.charLevelUp = false,
+    this.charNewLevel = 0,
+    this.charLevelsGained = 0,
   });
 
   factory MatchReward.fromJson(Map<String, dynamic> json) =>
