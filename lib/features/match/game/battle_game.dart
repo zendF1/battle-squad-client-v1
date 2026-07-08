@@ -1,3 +1,6 @@
+import 'dart:ui';
+
+import 'package:battle_squad_v1/features/match/game/cancel_zone_component.dart';
 import 'package:battle_squad_v1/features/match/game/explosion_component.dart';
 import 'package:battle_squad_v1/features/match/game/player_component.dart';
 import 'package:battle_squad_v1/features/match/game/projectile_component.dart';
@@ -11,9 +14,11 @@ import 'package:flame/game.dart';
 class BattleGame extends FlameGame {
   final String mapId;
   final Map<String, BattlePlayerState> initialPlayers;
+  final int localTeamId;
 
   late TerrainComponent _terrainComponent;
   late TrajectoryComponent _trajectoryComponent;
+  late CancelZoneComponent _cancelZoneComponent;
   final Map<String, PlayerComponent> playerComponents = {};
 
   static const double _gameWidth = 1600;
@@ -22,6 +27,7 @@ class BattleGame extends FlameGame {
   BattleGame({
     required this.mapId,
     required this.initialPlayers,
+    required this.localTeamId,
   });
 
   @override
@@ -49,6 +55,7 @@ class BattleGame extends FlameGame {
         displayName: ps.displayName,
         characterId: ps.characterId,
         teamId: ps.teamId,
+        isAlly: ps.teamId == localTeamId,
         hp: ps.hp,
         maxHp: ps.maxHp,
         isAlive: ps.isAlive,
@@ -61,6 +68,10 @@ class BattleGame extends FlameGame {
     // Add trajectory preview (always present, just hidden)
     _trajectoryComponent = TrajectoryComponent();
     world.add(_trajectoryComponent);
+
+    _cancelZoneComponent = CancelZoneComponent();
+    _cancelZoneComponent.hide();
+    world.add(_cancelZoneComponent);
 
     await super.onLoad();
   }
@@ -125,6 +136,9 @@ class BattleGame extends FlameGame {
   }
 
   void _handleExplosion(ProjectileResult result) {
+    // Teleport or other no-damage projectiles: skip explosion
+    if (result.explosionRadius <= 0) return;
+
     final ep = result.explosionPoint;
     final center = ep != null
         ? Vector2(ep.x, ep.y)
@@ -150,6 +164,28 @@ class BattleGame extends FlameGame {
       onComplete: () {},
     );
     world.add(explosion);
+  }
+
+  void showCancelZone(String playerId) {
+    final comp = playerComponents[playerId];
+    if (comp == null) return;
+    _cancelZoneComponent.show(comp.position.clone());
+  }
+
+  void hideCancelZone() {
+    _cancelZoneComponent.hide();
+  }
+
+  bool isInCancelZone(Vector2 worldPoint) {
+    return _cancelZoneComponent.containsPoint(worldPoint);
+  }
+
+  void setCancelZoneHighlight(bool highlighted) {
+    _cancelZoneComponent.isHighlighted = highlighted;
+  }
+
+  Vector2 screenToWorld(Offset screenPos) {
+    return camera.viewfinder.globalToLocal(Vector2(screenPos.dx, screenPos.dy));
   }
 
   /// Move the camera viewfinder to follow a target position.

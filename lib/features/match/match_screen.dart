@@ -1,11 +1,13 @@
 import 'dart:math';
 
 import 'package:battle_squad_v1/core/auth/auth_provider.dart';
+import 'package:battle_squad_v1/core/providers/core_providers.dart';
 import 'package:battle_squad_v1/core/theme/app_theme.dart';
 import 'package:battle_squad_v1/features/match/game/battle_game.dart';
 import 'package:battle_squad_v1/features/match/hud/match_hud.dart';
 import 'package:battle_squad_v1/features/match/match_provider.dart';
 import 'package:battle_squad_v1/features/match/match_result_dialog.dart';
+import 'package:battle_squad_v1/shared/widgets/error_snackbar.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,6 +30,9 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
   double _dragAngle = 45;
   int _dragPower = 50;
   bool _isDragging = false;
+  String _actionMode = 'weapon';
+  String? _activeItemId;
+  bool _isInCancelZone = false;
 
   @override
   Widget build(BuildContext context) {
@@ -54,10 +59,15 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     }
 
     // Create BattleGame once when we first get state
-    _game ??= BattleGame(
-      mapId: matchData.state.mapId,
-      initialPlayers: matchData.state.players,
-    );
+    if (_game == null) {
+      final myId = ref.read(authProvider).playerId;
+      final localTeamId = matchData.state.players[myId]?.teamId ?? 1;
+      _game = BattleGame(
+        mapId: matchData.state.mapId,
+        initialPlayers: matchData.state.players,
+        localTeamId: localTeamId,
+      );
+    }
 
     // Animate new projectile if available
     _handleProjectile(matchData);
@@ -75,6 +85,16 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
 
     final notifier = ref.read(matchProvider.notifier);
     final myPlayerId = ref.watch(authProvider).playerId;
+
+    // Reset action mode if active item was consumed
+    if (_activeItemId != null && myPlayerId != null) {
+      final myPlayer = matchData.state.players[myPlayerId];
+      if (myPlayer != null && !myPlayer.items.contains(_activeItemId)) {
+        _actionMode = 'weapon';
+        _activeItemId = null;
+      }
+    }
+
     final isMyTurn = matchData.state.currentPlayerId == myPlayerId;
 
     return Scaffold(
@@ -99,13 +119,12 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
               matchData: matchData,
               dragAngle: _isDragging ? _dragAngle : null,
               dragPower: _isDragging ? _dragPower : null,
+              actionMode: _actionMode,
+              activeItemId: _activeItemId,
+              onActionModeChanged: (mode) => setState(() => _actionMode = mode),
+              onActiveItemChanged: (id) => setState(() => _activeItemId = id),
               onShoot: (angle, power, mode, itemId) {
-                notifier.shoot(
-                  angle: angle,
-                  power: power,
-                  actionMode: mode,
-                  itemId: itemId,
-                );
+                notifier.shoot(angle: angle, power: power, actionMode: mode, itemId: itemId);
               },
               onMove: (direction, targetX) {
                 notifier.move(direction: direction, targetX: targetX);
@@ -147,7 +166,14 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
 
   void _onDragStart(DragStartDetails details) {
     _dragStart = details.localPosition;
-    setState(() => _isDragging = true);
+    setState(() {
+      _isDragging = true;
+      _isInCancelZone = false;
+    });
+    final myPlayerId = ref.read(authProvider).playerId;
+    if (myPlayerId != null) {
+      _game?.showCancelZone(myPlayerId);
+    }
   }
 
   void _onDragUpdate(
@@ -179,28 +205,46 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
       windDirection: matchData.state.wind.direction,
       windPower: matchData.state.wind.power,
     );
+
+    // Check cancel zone
+    final game = _game;
+    if (game != null) {
+      final worldPoint = game.screenToWorld(details.localPosition);
+      final inZone = game.isInCancelZone(worldPoint);
+      game.setCancelZoneHighlight(inZone);
+      _isInCancelZone = inZone;
+    }
   }
 
   void _onDragEnd(
       MatchData matchData, MatchNotifier notifier, String? myPlayerId) {
-    if (!_isDragging || _dragPower < 5) {
-      // Too weak, cancel
+    _game?.hideCancelZone();
+
+    if (!_isDragging || _dragPower < 5 || _isInCancelZone) {
       _game?.hideTrajectory();
-      setState(() => _isDragging = false);
+      setState(() {
+        _isDragging = false;
+        _isInCancelZone = false;
+      });
       return;
     }
 
-    // Fire with dragged angle/power
     notifier.shoot(
       angle: _dragAngle,
       power: _dragPower,
-      actionMode: 'weapon',
+      actionMode: _actionMode,
+      itemId: _activeItemId,
     );
 
     _game?.hideTrajectory();
     setState(() {
       _isDragging = false;
       _dragStart = null;
+      _isInCancelZone = false;
+      if (_actionMode == 'item') {
+        _actionMode = 'weapon';
+        _activeItemId = null;
+      }
     });
   }
 
@@ -239,10 +283,24 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
       builder: (_) => MatchResultDialog(
         endedData: matchData.endedData!,
         myPlayerId: myPlayerId,
+        matchId: matchData.state.matchId,
         players: matchData.state.players,
         onBackToLobby: () {
           ref.read(matchProvider.notifier).leave();
           if (mounted) context.go('/home');
+        },
+        onReport: (reportData) async {
+          try {
+            final client = ref.read(apiClientProvider);
+            await client.post('/report/player', data: reportData);
+            if (mounted) {
+              showSuccessSnackbar(context, 'Report submitted. Thank you!');
+            }
+          } catch (e) {
+            if (mounted) {
+              showErrorSnackbar(context, 'Failed to submit report: $e');
+            }
+          }
         },
       ),
     );

@@ -9,6 +9,7 @@ class PlayerComponent extends PositionComponent {
   String displayName;
   final String characterId;
   final int teamId;
+  final bool isAlly;
   int hp;
   final int maxHp;
   bool isAlive;
@@ -21,12 +22,17 @@ class PlayerComponent extends PositionComponent {
   // Server Y for anti-desync correction after landing
   double? _serverTargetY;
 
+  // Team colors
+  static const Color _allyColor = Color(0xFF2196F3); // Blue
+  static const Color _enemyColor = Color(0xFFEF5350); // Red
+
   PlayerComponent({
     required this.playerId,
     required this.terrainData,
     required this.displayName,
     required this.characterId,
     required this.teamId,
+    required this.isAlly,
     required this.hp,
     required this.maxHp,
     required this.isAlive,
@@ -38,6 +44,7 @@ class PlayerComponent extends PositionComponent {
         );
 
   Color get _bodyColor => AppTheme.characterColor(characterId);
+  Color get _teamColor => isAlly ? _allyColor : _enemyColor;
 
   @override
   void update(double dt) {
@@ -84,11 +91,12 @@ class PlayerComponent extends PositionComponent {
       }
     }
 
-    // Fell off map bottom
+    // Fell off map bottom — dead
     if (position.y >= terrainData.height) {
-      position.y = terrainData.height.toDouble();
+      position.y = terrainData.height.toDouble() + 100; // move off-screen
       _fallVelocity = 0;
       _isFalling = false;
+      isAlive = false;
     }
   }
 
@@ -111,15 +119,15 @@ class PlayerComponent extends PositionComponent {
       Paint()..color = _bodyColor,
     );
 
-    // Name label (truncated to 6 chars)
+    // Name label (truncated to 6 chars) — blue for allies, red for enemies
     final name = displayName.length > 6
         ? displayName.substring(0, 6)
         : displayName;
     final namePainter = TextPainter(
       text: TextSpan(
         text: name,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: _teamColor,
           fontSize: 8,
           fontWeight: FontWeight.bold,
         ),
@@ -136,14 +144,9 @@ class PlayerComponent extends PositionComponent {
     final hpBarBg = Paint()..color = Colors.black54;
     canvas.drawRect(Rect.fromLTWH(0, -8, 32, 4), hpBarBg);
 
-    // HP bar fill
+    // HP bar fill — blue for allies, red for enemies
     final ratio = (hp / maxHp).clamp(0.0, 1.0);
-    final hpColor = ratio > 0.5
-        ? Colors.green
-        : ratio > 0.25
-            ? Colors.orange
-            : Colors.red;
-    final hpPaint = Paint()..color = hpColor;
+    final hpPaint = Paint()..color = _teamColor;
     canvas.drawRect(Rect.fromLTWH(0, -8, 32 * ratio, 4), hpPaint);
   }
 

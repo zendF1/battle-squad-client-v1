@@ -17,6 +17,10 @@ class MatchHud extends ConsumerStatefulWidget {
   final VoidCallback onEndTurn;
   final double? dragAngle;
   final int? dragPower;
+  final String actionMode;
+  final String? activeItemId;
+  final ValueChanged<String> onActionModeChanged;
+  final ValueChanged<String?> onActiveItemChanged;
 
   const MatchHud({
     super.key,
@@ -26,6 +30,10 @@ class MatchHud extends ConsumerStatefulWidget {
     required this.onEndTurn,
     this.dragAngle,
     this.dragPower,
+    required this.actionMode,
+    this.activeItemId,
+    required this.onActionModeChanged,
+    required this.onActiveItemChanged,
   });
 
   @override
@@ -33,9 +41,6 @@ class MatchHud extends ConsumerStatefulWidget {
 }
 
 class _MatchHudState extends ConsumerState<MatchHud> {
-  String _actionMode = 'weapon';
-  String? _activeItemId;
-
   @override
   Widget build(BuildContext context) {
     final matchData = widget.matchData;
@@ -74,12 +79,10 @@ class _MatchHudState extends ConsumerState<MatchHud> {
                 ItemSkillBar(
                   items: myItems,
                   skillCooldown: mySkillCooldown,
-                  activeItemId: _activeItemId,
-                  actionMode: _actionMode,
-                  onActionModeChanged: (mode) =>
-                      setState(() => _actionMode = mode),
-                  onActiveItemChanged: (id) =>
-                      setState(() => _activeItemId = id),
+                  activeItemId: widget.activeItemId,
+                  actionMode: widget.actionMode,
+                  onActionModeChanged: widget.onActionModeChanged,
+                  onActiveItemChanged: widget.onActiveItemChanged,
                 ),
                 const SizedBox(height: 8),
                 // Controls row: hold-to-move + drag hint + end turn

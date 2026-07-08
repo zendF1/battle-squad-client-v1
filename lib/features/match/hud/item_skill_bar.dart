@@ -93,6 +93,7 @@ class ItemSkillBar extends StatelessWidget {
       'heal' || 'potion' => Icons.favorite,
       'bomb' => Icons.local_fire_department,
       'rope' => Icons.cable,
+      'teleport' => Icons.swap_horiz,
       _ => Icons.inventory_2,
     };
   }
