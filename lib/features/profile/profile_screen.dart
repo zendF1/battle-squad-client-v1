@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../shared/models/player_models.dart';
@@ -215,6 +216,23 @@ class _ProfileBody extends ConsumerWidget {
                   // Currency display
                   CurrencyDisplay(coins: profile.coin, gems: profile.gem),
                 ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Characters button
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => context.push('/characters'),
+              icon: const Icon(Icons.people, color: AppColors.accent),
+              label: const Text('Characters & Stats',
+                  style: TextStyle(color: AppColors.accent)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.accent),
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
             ),
           ),

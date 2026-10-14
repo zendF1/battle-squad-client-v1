@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:battle_squad_v1/shared/models/lobby_models.dart';
 import 'package:battle_squad_v1/shared/models/match_models.dart';
 import 'package:battle_squad_v1/shared/models/room_models.dart';
 
@@ -11,13 +12,22 @@ class WsEnvelope {
   final String event;
   final Map<String, dynamic> data;
 
-  const WsEnvelope({required this.event, required this.data});
+  /// Raw data preserved when the server sends a non-Map payload (e.g. array).
+  final dynamic rawData;
+
+  const WsEnvelope({required this.event, required this.data, this.rawData});
 
   factory WsEnvelope.fromJson(Map<String, dynamic> json) {
-    return WsEnvelope(
-      event: json['event'] as String,
-      data: (json['data'] as Map<String, dynamic>?) ?? {},
-    );
+    final raw = json['data'];
+    final Map<String, dynamic> data;
+    if (raw is Map<String, dynamic>) {
+      data = raw;
+    } else if (raw is Map) {
+      data = Map<String, dynamic>.from(raw);
+    } else {
+      data = {};
+    }
+    return WsEnvelope(event: json['event'] as String, data: data, rawData: raw);
   }
 
   Map<String, dynamic> toJson() => {'event': event, 'data': data};
@@ -100,6 +110,43 @@ class MatchStateSyncEvent extends WsEvent {
   MatchStateSyncEvent(this.state);
 }
 
+class LobbyUpdatedEvent extends WsEvent {
+  final LobbyState lobby;
+  LobbyUpdatedEvent(this.lobby);
+}
+
+class QueueStartedEvent extends WsEvent {
+  final int? estimatedWait;
+  QueueStartedEvent({this.estimatedWait});
+}
+
+class QueueCancelledEvent extends WsEvent {
+  final String reason;
+  QueueCancelledEvent(this.reason);
+}
+
+class MatchFoundEvent extends WsEvent {
+  final String roomId;
+  final String? matchId;
+  MatchFoundEvent({required this.roomId, this.matchId});
+}
+
+class LobbyDisbandedEvent extends WsEvent {
+  final String reason;
+  LobbyDisbandedEvent(this.reason);
+}
+
+class ReturnToLobbyEvent extends WsEvent {
+  final String lobbyId;
+  ReturnToLobbyEvent(this.lobbyId);
+}
+
+class LobbyErrorEvent extends WsEvent {
+  final String code;
+  final String message;
+  LobbyErrorEvent({required this.code, required this.message});
+}
+
 class WsDisconnectedEvent extends WsEvent {}
 
 class WsReconnectedEvent extends WsEvent {}
@@ -116,9 +163,11 @@ WsEvent? parseWsEvent(WsEnvelope envelope) {
         return RoomUpdatedEvent(RoomState.fromJson(d));
 
       case 'RoomError':
+        // Server sends nested: {"error":{"code":"...","message":"..."}}
+        final err = d['error'] as Map<String, dynamic>? ?? d;
         return RoomErrorEvent(
-          code: d['code'] as String,
-          message: d['message'] as String,
+          code: err['code'] as String? ?? 'UNKNOWN',
+          message: err['message'] as String? ?? 'Unknown error',
         );
 
       case 'MatchStarted':
@@ -137,10 +186,17 @@ WsEvent? parseWsEvent(WsEnvelope envelope) {
         return ProjectileResultEvent(ProjectileResult.fromJson(d));
 
       case 'PlayerDamaged':
-        // Accept both array and single-object formats.
-        final raw = d['damages'] ?? d;
-        final List<dynamic> list =
-            raw is List ? raw : [raw];
+        // Server may send data as a top-level array or as {damages: [...]}.
+        final raw = envelope.rawData;
+        final List<dynamic> list;
+        if (raw is List) {
+          list = raw;
+        } else if (d.containsKey('damages')) {
+          final v = d['damages'];
+          list = v is List ? v : [v];
+        } else {
+          list = [d];
+        }
         final damages =
             list.map((e) => DamageEntry.fromJson(e as Map<String, dynamic>)).toList();
         return PlayerDamagedEvent(damages);
@@ -173,6 +229,34 @@ WsEvent? parseWsEvent(WsEnvelope envelope) {
 
       case 'MatchStateSync':
         return MatchStateSyncEvent(MatchState.fromJson(d));
+
+      case 'LobbyUpdated':
+        return LobbyUpdatedEvent(LobbyState.fromJson(d));
+
+      case 'QueueStarted':
+        return QueueStartedEvent(estimatedWait: d['estimatedWait'] as int?);
+
+      case 'QueueCancelled':
+        return QueueCancelledEvent(d['reason'] as String? ?? 'unknown');
+
+      case 'MatchFound':
+        return MatchFoundEvent(
+          roomId: d['roomId'] as String,
+          matchId: d['matchId'] as String?,
+        );
+
+      case 'LobbyDisbanded':
+        return LobbyDisbandedEvent(d['reason'] as String? ?? 'unknown');
+
+      case 'ReturnToLobby':
+        return ReturnToLobbyEvent(d['lobbyId'] as String);
+
+      case 'LobbyError':
+        final err = d['error'] as Map<String, dynamic>? ?? d;
+        return LobbyErrorEvent(
+          code: err['code'] as String? ?? 'UNKNOWN',
+          message: err['message'] as String? ?? 'Unknown error',
+        );
 
       default:
         return null;

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../shared/models/rank_models.dart';
+import '../../shared/widgets/error_snackbar.dart';
 import 'ranking_provider.dart';
 
 class RankingScreen extends ConsumerWidget {
@@ -39,7 +40,13 @@ class RankingScreen extends ConsumerWidget {
               loading: () =>
                   const Center(child: CircularProgressIndicator()),
               error: (e, _) => const _ErrorText('Failed to load season info'),
-              data: (season) => _SeasonCard(season: season),
+              data: (season) {
+                final myRank = ref.watch(myRankProvider).valueOrNull;
+                return _SeasonCard(
+                  season: season,
+                  myTier: myRank?.tier,
+                );
+              },
             ),
 
             const SizedBox(height: 16),
@@ -84,10 +91,20 @@ class RankingScreen extends ConsumerWidget {
   }
 }
 
-class _SeasonCard extends StatelessWidget {
+class _SeasonCard extends ConsumerStatefulWidget {
   final Season season;
+  final String? myTier;
 
-  const _SeasonCard({required this.season});
+  const _SeasonCard({required this.season, this.myTier});
+
+  @override
+  ConsumerState<_SeasonCard> createState() => _SeasonCardState();
+}
+
+class _SeasonCardState extends ConsumerState<_SeasonCard> {
+  bool _claiming = false;
+
+  Season get season => widget.season;
 
   String _formatDate(String dateStr) {
     try {
@@ -98,51 +115,104 @@ class _SeasonCard extends StatelessWidget {
     }
   }
 
+  bool get _canClaim =>
+      (season.status == 'ended' || season.status == 'reward_granting') &&
+      widget.myTier != null;
+
+  Future<void> _claimReward() async {
+    if (_claiming || widget.myTier == null) return;
+    setState(() => _claiming = true);
+    try {
+      final data = await ref.read(seasonRewardServiceProvider).claimReward(
+            seasonId: season.seasonId,
+            tier: widget.myTier!,
+          );
+      if (mounted) {
+        final coins = data['rewardCoin'] as int? ?? 0;
+        final gems = data['rewardGem'] as int? ?? 0;
+        final parts = <String>[];
+        if (coins > 0) parts.add('$coins coins');
+        if (gems > 0) parts.add('$gems gems');
+        showSuccessSnackbar(
+            context, 'Reward claimed! ${parts.join(", ")}');
+      }
+    } catch (e) {
+      if (mounted) showErrorSnackbar(context, 'Failed to claim: $e');
+    } finally {
+      if (mounted) setState(() => _claiming = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
+        child: Column(
           children: [
-            const Icon(Icons.emoji_events, color: AppColors.warning, size: 32),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    season.name,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+            Row(
+              children: [
+                const Icon(Icons.emoji_events, color: AppColors.warning, size: 32),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        season.name,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Ends: ${_formatDate(season.endsAt)}',
+                        style: const TextStyle(
+                            color: AppColors.textSecondary, fontSize: 13),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Ends: ${_formatDate(season.endsAt)}',
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 13),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ],
-              ),
+                  child: Text(
+                    season.status.toUpperCase(),
+                    style: const TextStyle(
+                        color: AppColors.success,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
             ),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.success.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(12),
+            if (_canClaim) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _claiming ? null : _claimReward,
+                  icon: _claiming
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.card_giftcard),
+                  label: const Text('Claim Season Reward'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.warning,
+                    foregroundColor: AppColors.background,
+                  ),
+                ),
               ),
-              child: Text(
-                season.status.toUpperCase(),
-                style: const TextStyle(
-                    color: AppColors.success,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold),
-              ),
-            ),
+            ],
           ],
         ),
       ),

@@ -258,6 +258,30 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Ranked 2v2 button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _joining ? null : () => context.push('/ranked-lobby'),
+              icon: const Icon(Icons.military_tech, color: AppColors.textPrimary),
+              label: const Text(
+                'Ranked 2v2',
+                style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.warning,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+
           // Quick Play button
           SizedBox(
             width: double.infinity,

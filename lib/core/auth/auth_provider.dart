@@ -171,6 +171,67 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  Future<void> providerLogin({
+    required String provider,
+    required String idToken,
+  }) async {
+    state = state.copyWith(loading: true, clearError: true);
+
+    try {
+      final data = await _apiClient.post(
+        '/auth/provider-login',
+        data: {'provider': provider, 'idToken': idToken},
+      );
+
+      final accessToken = data['accessToken'] as String? ?? data['access_token'] as String?;
+      final refreshToken = data['refreshToken'] as String? ?? data['refresh_token'] as String?;
+      final playerId = data['playerId'] as String? ?? data['player_id'] as String?;
+      final displayName = data['displayName'] as String? ?? data['display_name'] as String?;
+
+      if (accessToken == null || refreshToken == null || playerId == null) {
+        state = state.copyWith(
+          loading: false,
+          error: 'Invalid response from server',
+        );
+        return;
+      }
+
+      await _tokenStorage.saveTokens(
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        playerId: playerId,
+      );
+
+      _wsManager.connect(accessToken);
+
+      state = state.copyWith(
+        status: AuthStatus.authenticated,
+        playerId: playerId,
+        displayName: displayName,
+        loading: false,
+        clearError: true,
+      );
+    } on ApiException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+    } catch (e) {
+      state = state.copyWith(loading: false, error: e.toString());
+    }
+  }
+
+  Future<void> linkProvider({
+    required String provider,
+    required String idToken,
+  }) async {
+    try {
+      await _apiClient.post(
+        '/auth/link-provider',
+        data: {'provider': provider, 'idToken': idToken},
+      );
+    } on ApiException {
+      rethrow;
+    }
+  }
+
   Future<void> logout() async {
     final rt = await _tokenStorage.refreshToken;
     if (rt != null) {

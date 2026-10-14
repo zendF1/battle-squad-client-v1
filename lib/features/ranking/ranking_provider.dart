@@ -30,3 +30,25 @@ final currentSeasonProvider = FutureProvider<Season>((ref) async {
   final data = await client.get('/rank/seasons/current');
   return Season.fromJson(data);
 });
+
+class SeasonRewardService {
+  final Ref _ref;
+
+  SeasonRewardService(this._ref);
+
+  Future<Map<String, dynamic>> claimReward({
+    required String seasonId,
+    required String tier,
+  }) async {
+    final client = _ref.read(apiClientProvider);
+    final data = await client.post('/rank/reward/claim', data: {
+      'seasonId': seasonId,
+      'tier': tier,
+    });
+    return data;
+  }
+}
+
+final seasonRewardServiceProvider = Provider<SeasonRewardService>(
+  (ref) => SeasonRewardService(ref),
+);

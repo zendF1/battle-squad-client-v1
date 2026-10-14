@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/splash_screen.dart';
 import '../../features/lobby/lobby_screen.dart';
+import '../../features/profile/character_detail_screen.dart';
+import '../../features/lobby/ranked_lobby_screen.dart';
 import '../../features/match/match_screen.dart';
 import '../../features/mission/mission_screen.dart';
 import '../../features/profile/profile_screen.dart';
@@ -76,6 +78,14 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const RankingScreen(),
           ),
         ],
+      ),
+      GoRoute(
+        path: '/characters',
+        builder: (context, state) => const CharacterDetailScreen(),
+      ),
+      GoRoute(
+        path: '/ranked-lobby',
+        builder: (context, state) => const RankedLobbyScreen(),
       ),
       GoRoute(
         path: '/room/:id',

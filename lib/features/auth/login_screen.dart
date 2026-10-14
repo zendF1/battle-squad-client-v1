@@ -43,6 +43,61 @@ class LoginScreen extends ConsumerWidget {
                       ? null
                       : () => ref.read(authProvider.notifier).guestLogin(),
                 ),
+                const SizedBox(height: 16),
+                const Row(
+                  children: [
+                    Expanded(child: Divider(color: AppColors.textSecondary)),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Text('or',
+                          style: TextStyle(color: AppColors.textSecondary)),
+                    ),
+                    Expanded(child: Divider(color: AppColors.textSecondary)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: authState.loading
+                        ? null
+                        : () {
+                            // TODO: Integrate google_sign_in package
+                            // final googleUser = await GoogleSignIn().signIn();
+                            // final idToken = ...;
+                            // ref.read(authProvider.notifier).providerLogin(
+                            //   provider: 'google', idToken: idToken);
+                          },
+                    icon: const Icon(Icons.g_mobiledata, size: 24),
+                    label: const Text('Sign in with Google'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textPrimary,
+                      side: const BorderSide(color: AppColors.textSecondary),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: authState.loading
+                        ? null
+                        : () {
+                            // TODO: Integrate sign_in_with_apple package
+                            // final credential = await SignInWithApple.getAppleIDCredential(...);
+                            // ref.read(authProvider.notifier).providerLogin(
+                            //   provider: 'apple', idToken: credential.identityToken);
+                          },
+                    icon: const Icon(Icons.apple, size: 24),
+                    label: const Text('Sign in with Apple'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textPrimary,
+                      side: const BorderSide(color: AppColors.textSecondary),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
                 if (authState.error != null) ...[
                   const SizedBox(height: 16),
                   Text(

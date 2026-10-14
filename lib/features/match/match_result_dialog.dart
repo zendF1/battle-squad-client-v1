@@ -1,19 +1,24 @@
 import 'package:battle_squad_v1/core/theme/app_theme.dart';
 import 'package:battle_squad_v1/shared/models/match_models.dart';
+import 'package:battle_squad_v1/shared/widgets/report_player_dialog.dart';
 import 'package:flutter/material.dart';
 
 class MatchResultDialog extends StatelessWidget {
   final MatchEndedData endedData;
   final String? myPlayerId;
+  final String? matchId;
   final Map<String, BattlePlayerState> players;
   final VoidCallback onBackToLobby;
+  final void Function(Map<String, dynamic> reportData)? onReport;
 
   const MatchResultDialog({
     super.key,
     required this.endedData,
     required this.myPlayerId,
+    this.matchId,
     required this.players,
     required this.onBackToLobby,
+    this.onReport,
   });
 
   String get _resultLabel {
@@ -115,20 +120,22 @@ class MatchResultDialog extends StatelessWidget {
                     icon: Icons.star,
                     color: AppColors.warning,
                     label: 'EXP',
-                    value: '+${reward.exp}',
+                    value: '+${reward.expGained}',
                   ),
                   _RewardTile(
                     icon: Icons.monetization_on,
                     color: AppColors.coin,
                     label: 'Coins',
-                    value: '+${reward.coins}',
+                    value: '+${reward.coinGained}',
                   ),
-                  if (reward.gemReward != null)
+                  if (reward.ratingChange != 0)
                     _RewardTile(
-                      icon: Icons.diamond,
-                      color: AppColors.gem,
-                      label: 'Gems',
-                      value: '+${reward.gemReward}',
+                      icon: Icons.trending_up,
+                      color: reward.ratingChange > 0
+                          ? AppColors.success
+                          : AppColors.error,
+                      label: 'Rating',
+                      value: '${reward.ratingChange > 0 ? "+" : ""}${reward.ratingChange}',
                     ),
                 ],
               ),
@@ -157,6 +164,51 @@ class MatchResultDialog extends StatelessWidget {
                     : '${(myStats.shotsHit / myStats.shotsFired * 100).round()}%',
               ),
               const SizedBox(height: 16),
+            ],
+
+            // Report button
+            if (onReport != null) ...[
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: () async {
+                    final myTeam = myPlayerId != null
+                        ? players[myPlayerId]?.teamId
+                        : null;
+                    final opponents = players.entries
+                        .where((e) =>
+                            e.value.teamId != myTeam &&
+                            e.key != myPlayerId &&
+                            !e.value.isBot)
+                        .map((e) => e.key)
+                        .toList();
+
+                    if (opponents.isEmpty) return;
+
+                    final nameMap = <String, String>{};
+                    for (final id in opponents) {
+                      nameMap[id] = players[id]?.displayName ?? id;
+                    }
+
+                    final result =
+                        await showDialog<Map<String, dynamic>>(
+                      context: context,
+                      builder: (_) => ReportPlayerDialog(
+                        opponentPlayerIds: opponents,
+                        playerNames: nameMap,
+                        matchId: matchId ?? '',
+                      ),
+                    );
+                    if (result != null) onReport!(result);
+                  },
+                  icon: const Icon(Icons.flag, size: 16),
+                  label: const Text('Report Player'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
             ],
 
             // Back to lobby button
