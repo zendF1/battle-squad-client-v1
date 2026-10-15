@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers/core_providers.dart';
@@ -10,13 +11,20 @@ class ProfileNotifier extends StateNotifier<AsyncValue<PlayerProfile>> {
     fetch();
   }
 
-  Future<void> fetch() async {
-    state = const AsyncValue.loading();
+  /// With [silent], the current profile stays on screen while reloading and
+  /// is kept if the reload fails, instead of flashing a loading/error state.
+  Future<void> fetch({bool silent = false}) async {
+    final keepCurrent = silent && state.hasValue;
+    if (!keepCurrent) state = const AsyncValue.loading();
     try {
       final client = _ref.read(apiClientProvider);
       final data = await client.get('/player/profile');
       state = AsyncValue.data(PlayerProfile.fromJson(data));
     } catch (e, st) {
+      if (keepCurrent) {
+        debugPrint('[Profile] silent refresh failed: $e');
+        return;
+      }
       state = AsyncValue.error(e, st);
     }
   }

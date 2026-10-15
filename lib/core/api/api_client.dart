@@ -39,8 +39,21 @@ class ApiException implements Exception {
     );
   }
 
+  /// The server answered and refused the request (4xx), so it changed nothing.
+  /// Network errors (0) and server errors (5xx) leave the outcome unknown.
+  bool get isRejected => statusCode >= 400 && statusCode < 500;
+
   @override
   String toString() => 'ApiException($code): $message';
+}
+
+/// Returns the payload of a `{"success": true, "data": ...}` response.
+/// Bodies without the envelope are returned unchanged.
+dynamic unwrapEnvelope(dynamic body) {
+  if (body is Map<String, dynamic> && body['success'] == true) {
+    return body['data'];
+  }
+  return body;
 }
 
 class ApiClient {
@@ -68,7 +81,8 @@ class ApiClient {
     ));
   }
 
-  Map<String, dynamic> _normalize(dynamic data) {
+  Map<String, dynamic> _normalize(dynamic body) {
+    final data = unwrapEnvelope(body);
     if (data is Map<String, dynamic>) return data;
     if (data is List) return {'data': data};
     return {};

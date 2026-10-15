@@ -182,11 +182,9 @@ class _ShopOfferCardState extends ConsumerState<_ShopOfferCard> {
 
     setState(() => _purchasing = true);
     try {
-      final service = ref.read(shopPurchaseServiceProvider);
-      await service.purchase(widget.offer.offerId);
+      await ref.read(shopPurchaseServiceProvider).purchase(widget.offer.offerId);
       if (mounted) {
         showSuccessSnackbar(context, 'Purchase successful!');
-        ref.invalidate(shopOffersProvider);
       }
     } catch (e) {
       if (mounted) {
@@ -350,14 +348,9 @@ class _GemProductCardState extends ConsumerState<_GemProductCard> {
 
     setState(() => _purchasing = true);
     try {
-      // TODO: Integrate with in_app_purchase plugin for real purchases.
-      // For now, simulate a purchase token.
-      final purchaseToken = 'mock_token_${DateTime.now().millisecondsSinceEpoch}';
-
-      await ref.read(iapServiceProvider).verifyReceipt(
+      await ref.read(iapServiceProvider).mockPurchase(
             productId: product.productId,
             platform: _platformName,
-            purchaseToken: purchaseToken,
           );
 
       if (mounted) {
