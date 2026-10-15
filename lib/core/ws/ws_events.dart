@@ -52,7 +52,8 @@ class RoomErrorEvent extends WsEvent {
 
 class MatchStartedEvent extends WsEvent {
   final MatchState state;
-  MatchStartedEvent(this.state);
+  final TerrainSnapshot? terrain;
+  MatchStartedEvent(this.state, this.terrain);
 }
 
 class TurnStartedEvent extends WsEvent {
@@ -84,7 +85,13 @@ class SkillUsedEvent extends WsEvent {
   final String playerId;
   final String skillId;
   final int? hp;
-  SkillUsedEvent({required this.playerId, required this.skillId, this.hp});
+  final int? skillEnergy;
+  SkillUsedEvent({
+    required this.playerId,
+    required this.skillId,
+    this.hp,
+    this.skillEnergy,
+  });
 }
 
 class ItemUsedEvent extends WsEvent {
@@ -107,7 +114,8 @@ class MatchEndedEvent extends WsEvent {
 
 class MatchStateSyncEvent extends WsEvent {
   final MatchState state;
-  MatchStateSyncEvent(this.state);
+  final TerrainSnapshot? terrain;
+  MatchStateSyncEvent(this.state, this.terrain);
 }
 
 class LobbyUpdatedEvent extends WsEvent {
@@ -155,6 +163,11 @@ class WsReconnectedEvent extends WsEvent {}
 // Parser
 // ---------------------------------------------------------------------------
 
+TerrainSnapshot? _terrainFrom(Map<String, dynamic> d) {
+  final t = d['terrain'];
+  return t is Map<String, dynamic> ? TerrainSnapshot.fromJson(t) : null;
+}
+
 WsEvent? parseWsEvent(WsEnvelope envelope) {
   try {
     final d = envelope.data;
@@ -171,7 +184,7 @@ WsEvent? parseWsEvent(WsEnvelope envelope) {
         );
 
       case 'MatchStarted':
-        return MatchStartedEvent(MatchState.fromJson(d));
+        return MatchStartedEvent(MatchState.fromJson(d), _terrainFrom(d));
 
       case 'TurnStarted':
         return TurnStartedEvent(TurnStartedData.fromJson(d));
@@ -206,6 +219,7 @@ WsEvent? parseWsEvent(WsEnvelope envelope) {
           playerId: d['playerId'] as String,
           skillId: d['skillId'] as String,
           hp: d['hp'] as int?,
+          skillEnergy: (d['skillEnergy'] as num?)?.toInt(),
         );
 
       case 'ItemUsed':
@@ -228,7 +242,7 @@ WsEvent? parseWsEvent(WsEnvelope envelope) {
         return MatchEndedEvent(MatchEndedData.fromJson(d));
 
       case 'MatchStateSync':
-        return MatchStateSyncEvent(MatchState.fromJson(d));
+        return MatchStateSyncEvent(MatchState.fromJson(d), _terrainFrom(d));
 
       case 'LobbyUpdated':
         return LobbyUpdatedEvent(LobbyState.fromJson(d));

@@ -35,7 +35,9 @@ class _RankedLobbyScreenState extends ConsumerState<RankedLobbyScreen> {
     final ws = ref.read(wsManagerProvider);
     _matchSub = ws.eventStream.listen((event) {
       if (event is MatchStartedEvent && mounted) {
-        ref.read(matchProvider.notifier).setInitialState(event.state);
+        ref
+            .read(matchProvider.notifier)
+            .setInitialState(event.state, terrain: event.terrain);
         context.go('/match');
       }
     });

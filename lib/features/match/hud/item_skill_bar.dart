@@ -1,6 +1,9 @@
 import 'package:battle_squad_v1/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
+/// Items that act as soon as they are used; the rest arm the next shot.
+const _immediateItems = {'medkit', 'wind_stopper'};
+
 class ItemSkillBar extends StatelessWidget {
   final List<String> items;
   final int skillEnergy; // 0-100, skill usable at 100
@@ -8,6 +11,7 @@ class ItemSkillBar extends StatelessWidget {
   final String actionMode; // 'weapon' | 'skill' | item id
   final ValueChanged<String> onActionModeChanged;
   final ValueChanged<String?> onActiveItemChanged;
+  final ValueChanged<String> onUseItem;
 
   const ItemSkillBar({
     super.key,
@@ -17,6 +21,7 @@ class ItemSkillBar extends StatelessWidget {
     required this.actionMode,
     required this.onActionModeChanged,
     required this.onActiveItemChanged,
+    required this.onUseItem,
   });
 
   @override
@@ -70,7 +75,9 @@ class ItemSkillBar extends StatelessWidget {
                   label: _labelForItem(itemId),
                   isActive: activeItemId == itemId,
                   onTap: () {
-                    if (activeItemId == itemId) {
+                    if (_immediateItems.contains(itemId)) {
+                      onUseItem(itemId);
+                    } else if (activeItemId == itemId) {
                       onActiveItemChanged(null);
                       onActionModeChanged('weapon');
                     } else {

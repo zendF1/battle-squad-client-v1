@@ -121,6 +121,7 @@ ProjectileResult _$ProjectileResultFromJson(Map<String, dynamic> json) =>
             ),
       explosionRadius: (json['explosionRadius'] as num).toDouble(),
       terrainDestroyed: json['terrainDestroyed'] as bool,
+      terrainVersion: (json['terrainVersion'] as num?)?.toInt() ?? 0,
     );
 
 Map<String, dynamic> _$ProjectileResultToJson(ProjectileResult instance) =>
@@ -133,6 +134,25 @@ Map<String, dynamic> _$ProjectileResultToJson(ProjectileResult instance) =>
       'explosionPoint': instance.explosionPoint,
       'explosionRadius': instance.explosionRadius,
       'terrainDestroyed': instance.terrainDestroyed,
+      'terrainVersion': instance.terrainVersion,
+    };
+
+TerrainSnapshot _$TerrainSnapshotFromJson(Map<String, dynamic> json) =>
+    TerrainSnapshot(
+      width: (json['width'] as num).toInt(),
+      height: (json['height'] as num).toInt(),
+      version: (json['version'] as num?)?.toInt() ?? 0,
+      solid: json['solid'] as String,
+      destructible: json['destructible'] as String,
+    );
+
+Map<String, dynamic> _$TerrainSnapshotToJson(TerrainSnapshot instance) =>
+    <String, dynamic>{
+      'width': instance.width,
+      'height': instance.height,
+      'version': instance.version,
+      'solid': instance.solid,
+      'destructible': instance.destructible,
     };
 
 DamageEntry _$DamageEntryFromJson(Map<String, dynamic> json) => DamageEntry(
@@ -245,6 +265,9 @@ TurnStartedData _$TurnStartedDataFromJson(Map<String, dynamic> json) =>
       currentPlayerId: json['currentPlayerId'] as String,
       wind: WindState.fromJson(json['wind'] as Map<String, dynamic>),
       moveEnergy: (json['moveEnergy'] as num).toInt(),
+      skillEnergy: (json['skillEnergy'] as Map<String, dynamic>?)?.map(
+        (k, e) => MapEntry(k, (e as num).toInt()),
+      ),
     );
 
 Map<String, dynamic> _$TurnStartedDataToJson(TurnStartedData instance) =>
@@ -253,6 +276,7 @@ Map<String, dynamic> _$TurnStartedDataToJson(TurnStartedData instance) =>
       'currentPlayerId': instance.currentPlayerId,
       'wind': instance.wind,
       'moveEnergy': instance.moveEnergy,
+      'skillEnergy': instance.skillEnergy,
     };
 
 PlayerMovedData _$PlayerMovedDataFromJson(Map<String, dynamic> json) =>

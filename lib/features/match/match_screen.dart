@@ -23,6 +23,7 @@ class MatchScreen extends ConsumerStatefulWidget {
 
 class _MatchScreenState extends ConsumerState<MatchScreen> {
   BattleGame? _game;
+  TerrainSnapshot? _gameTerrain;
   String? _lastProjectileId;
   bool _resultShown = false;
 
@@ -39,8 +40,9 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
   Widget build(BuildContext context) {
     final matchData = ref.watch(matchProvider);
 
-    // No match data yet — show a loading screen
-    if (matchData == null) {
+    // No match data or terrain yet — show a loading screen. The server sends
+    // terrain with MatchStarted, so it must be deployed before this client.
+    if (matchData == null || matchData.terrain == null) {
       return const Scaffold(
         backgroundColor: AppColors.background,
         body: Center(
@@ -63,15 +65,34 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     if (_game == null) {
       final myId = ref.read(authProvider).playerId;
       final localTeamId = matchData.state.players[myId]?.teamId ?? 1;
+      // Explosions still queued for animation apply when their projectile
+      // lands; the rest (e.g. animations lost with a previous screen) apply now.
+      final queued = {
+        for (final p in matchData.projectileQueue) p.projectileId,
+      };
       _game = BattleGame(
         mapId: matchData.state.mapId,
+        terrain: matchData.terrain!,
+        terrainOps: matchData.terrainOps
+            .where((op) => !queued.contains(op.projectileId))
+            .toList(),
         initialPlayers: matchData.state.players,
         localTeamId: localTeamId,
       );
+      _gameTerrain = matchData.terrain;
     }
 
-    // Animate new projectile if available
+    // Animate new projectiles before applying a snapshot, so a snapshot that
+    // arrives with them waits for their explosions instead of showing craters early.
     _handleProjectile(matchData);
+
+    if (!identical(matchData.terrain, _gameTerrain)) {
+      // New server snapshot (e.g. after reconnect): restore destroyed terrain
+      // and put players exactly where the server has them.
+      _game!.applyTerrainSnapshot(matchData.terrain!, matchData.terrainOps);
+      _game!.snapPlayers(matchData.state.players);
+      _gameTerrain = matchData.terrain;
+    }
 
     // Sync player states (X, HP, isAlive immediately; Y stored for gravity anti-desync)
     _syncPlayersToGame(matchData);
@@ -131,6 +152,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
                 notifier.move(direction: direction, targetX: targetX);
               },
               onEndTurn: notifier.endTurn,
+              onUseItem: (itemId) => notifier.useItem(itemId: itemId),
             ),
           ),
 
@@ -279,18 +301,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     if (newProjectiles.isEmpty) return;
 
     _lastProjectileId = newProjectiles.last.projectileId;
-
-    // Stagger multiple projectiles (e.g. triple_shot) by 100ms each
-    for (int i = 0; i < newProjectiles.length; i++) {
-      final proj = newProjectiles[i];
-      if (i == 0) {
-        _game?.animateProjectile(proj);
-      } else {
-        Future.delayed(Duration(milliseconds: 100 * i), () {
-          _game?.animateProjectile(proj);
-        });
-      }
-    }
+    _game?.animateProjectiles(newProjectiles);
 
     // Clear the queue
     ref.read(matchProvider.notifier).clearProjectileQueue();

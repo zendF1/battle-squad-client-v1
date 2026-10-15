@@ -18,6 +18,15 @@ class MatchData {
   final int turnTimeLeft;
   final MatchEndedData? endedData;
 
+  /// Latest authoritative terrain from the server.
+  final TerrainSnapshot? terrain;
+
+  /// Terrain-destroying projectile results received after [terrain].
+  final List<ProjectileResult> terrainOps;
+
+  /// Highest terrain version seen (snapshot or explosion).
+  final int terrainVersion;
+
   const MatchData({
     required this.state,
     this.lastProjectile,
@@ -25,6 +34,9 @@ class MatchData {
     this.lastDamages,
     this.turnTimeLeft = 20,
     this.endedData,
+    this.terrain,
+    this.terrainOps = const [],
+    this.terrainVersion = 0,
   });
 
   MatchData copyWith({
@@ -36,6 +48,8 @@ class MatchData {
     bool clearLastDamages = false,
     int? turnTimeLeft,
     MatchEndedData? endedData,
+    List<ProjectileResult>? terrainOps,
+    int? terrainVersion,
   }) {
     return MatchData(
       state: state ?? this.state,
@@ -47,6 +61,9 @@ class MatchData {
           clearLastDamages ? null : (lastDamages ?? this.lastDamages),
       turnTimeLeft: turnTimeLeft ?? this.turnTimeLeft,
       endedData: endedData ?? this.endedData,
+      terrain: terrain,
+      terrainOps: terrainOps ?? this.terrainOps,
+      terrainVersion: terrainVersion ?? this.terrainVersion,
     );
   }
 }
@@ -63,48 +80,61 @@ class MatchNotifier extends StateNotifier<MatchData?> {
     _sub = _wsManager.eventStream.listen(_handleEvent);
   }
 
-  void setInitialState(MatchState matchState) {
-    state = MatchData(state: matchState, turnTimeLeft: matchState.turnTimeLeft);
+  void setInitialState(MatchState matchState, {TerrainSnapshot? terrain}) {
+    state = _fromSnapshot(matchState, terrain, isSync: false);
+  }
+
+  /// Builds match data from a full server snapshot. A sync for the current
+  /// match keeps client-side progress the snapshot does not carry (pending
+  /// projectile animations, match result); a snapshot without terrain keeps
+  /// the previous terrain and its pending explosions.
+  MatchData _fromSnapshot(
+    MatchState matchState,
+    TerrainSnapshot? terrain, {
+    required bool isSync,
+  }) {
+    final current = state;
+    final sameMatch =
+        current != null && current.state.matchId == matchState.matchId;
+    final keep = isSync && sameMatch ? current : null;
+    final prevTerrain = sameMatch ? current : null;
+    return MatchData(
+      state: matchState,
+      turnTimeLeft: matchState.turnTimeLeft,
+      lastProjectile: keep?.lastProjectile,
+      projectileQueue: keep?.projectileQueue ?? const [],
+      lastDamages: keep?.lastDamages,
+      endedData: keep?.endedData,
+      terrain: terrain ?? prevTerrain?.terrain,
+      terrainOps: terrain != null
+          ? const []
+          : prevTerrain?.terrainOps ?? const [],
+      terrainVersion: terrain?.version ?? prevTerrain?.terrainVersion ?? 0,
+    );
   }
 
   void _handleEvent(WsEvent event) {
     switch (event) {
-      case MatchStartedEvent(:final state):
-        this.state = MatchData(state: state, turnTimeLeft: state.turnTimeLeft);
+      case MatchStartedEvent(:final state, :final terrain):
+        this.state = _fromSnapshot(state, terrain, isSync: false);
 
-      case MatchStateSyncEvent(:final state):
-        this.state = MatchData(state: state, turnTimeLeft: state.turnTimeLeft);
+      case MatchStateSyncEvent(:final state, :final terrain):
+        this.state = _fromSnapshot(state, terrain, isSync: true);
 
       case TurnStartedEvent(:final data):
         final current = state;
         if (current == null) return;
 
-        // Rebuild players map with updated moveEnergy for current player
-        final updatedPlayers =
-            Map<String, BattlePlayerState>.from(current.state.players);
-        if (updatedPlayers.containsKey(data.currentPlayerId)) {
-          final p = updatedPlayers[data.currentPlayerId]!;
-          updatedPlayers[data.currentPlayerId] = BattlePlayerState(
-            playerId: p.playerId,
-            displayName: p.displayName,
-            teamId: p.teamId,
-            characterId: p.characterId,
-            hp: p.hp,
-            maxHp: p.maxHp,
-            defense: p.defense,
-            position: p.position,
-            moveEnergy: data.moveEnergy,
-            items: p.items,
-            statusEffects: p.statusEffects,
-            isAlive: p.isAlive,
-            isBot: p.isBot,
-            skillEnergy: p.skillEnergy,
-            damageDealt: p.damageDealt,
-            killCount: p.killCount,
-            shotsFired: p.shotsFired,
-            shotsHit: p.shotsHit,
-          );
-        }
+        // Current player's move energy resets; skill energy syncs for everyone
+        final updatedPlayers = current.state.players.map(
+          (id, p) => MapEntry(
+            id,
+            p.copyWith(
+              moveEnergy: id == data.currentPlayerId ? data.moveEnergy : null,
+              skillEnergy: data.skillEnergy?[id],
+            ),
+          ),
+        );
 
         final newMatchState = MatchState(
           matchId: current.state.matchId,
@@ -135,10 +165,24 @@ class MatchNotifier extends StateNotifier<MatchData?> {
       case ProjectileResultEvent(:final data):
         final current = state;
         if (current == null) return;
+        var terrainOps = current.terrainOps;
+        var terrainVersion = current.terrainVersion;
+        var missedTerrain = false;
+        if (data.terrainDestroyed && data.terrainVersion > 0) {
+          missedTerrain = data.terrainVersion > terrainVersion + 1;
+          terrainOps = [...terrainOps, data];
+          if (data.terrainVersion > terrainVersion) {
+            terrainVersion = data.terrainVersion;
+          }
+        }
         state = current.copyWith(
           lastProjectile: data,
           projectileQueue: [...current.projectileQueue, data],
+          terrainOps: terrainOps,
+          terrainVersion: terrainVersion,
         );
+        // A skipped version means an explosion was missed: resync terrain.
+        if (missedTerrain) reconnect();
 
       case PlayerDamagedEvent(:final damages):
         final current = state;
@@ -242,34 +286,16 @@ class MatchNotifier extends StateNotifier<MatchData?> {
         if (current == null) return;
         state = current.copyWith(endedData: data);
 
-      case SkillUsedEvent(:final playerId, :final hp):
+      case SkillUsedEvent(:final playerId, :final hp, :final skillEnergy):
         final current = state;
         if (current == null) return;
-        if (hp != null) {
+        if (hp != null || skillEnergy != null) {
           final updatedPlayers =
               Map<String, BattlePlayerState>.from(current.state.players);
-          if (updatedPlayers.containsKey(playerId)) {
-            final p = updatedPlayers[playerId]!;
-            updatedPlayers[playerId] = BattlePlayerState(
-              playerId: p.playerId,
-              displayName: p.displayName,
-              teamId: p.teamId,
-              characterId: p.characterId,
-              hp: hp,
-              maxHp: p.maxHp,
-              defense: p.defense,
-              position: p.position,
-              moveEnergy: p.moveEnergy,
-              items: p.items,
-              statusEffects: p.statusEffects,
-              isAlive: p.isAlive,
-              isBot: p.isBot,
-              skillEnergy: p.skillEnergy,
-              damageDealt: p.damageDealt,
-              killCount: p.killCount,
-              shotsFired: p.shotsFired,
-              shotsHit: p.shotsHit,
-            );
+          final p = updatedPlayers[playerId];
+          if (p != null) {
+            updatedPlayers[playerId] =
+                p.copyWith(hp: hp, skillEnergy: skillEnergy);
           }
           final newMatchState = MatchState(
             matchId: current.state.matchId,
@@ -350,8 +376,8 @@ class MatchNotifier extends StateNotifier<MatchData?> {
   void useItem({required String itemId, Vector2Model? targetPosition}) {
     _wsManager.send('UseItem', {
       'itemId': itemId,
-      if (targetPosition != null) 'targetX': targetPosition.x,
-      if (targetPosition != null) 'targetY': targetPosition.y,
+      if (targetPosition != null)
+        'targetPosition': {'x': targetPosition.x, 'y': targetPosition.y},
     });
   }
 

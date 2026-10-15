@@ -21,6 +21,7 @@ class MatchHud extends ConsumerStatefulWidget {
   final String? activeItemId;
   final ValueChanged<String> onActionModeChanged;
   final ValueChanged<String?> onActiveItemChanged;
+  final ValueChanged<String> onUseItem;
 
   const MatchHud({
     super.key,
@@ -34,6 +35,7 @@ class MatchHud extends ConsumerStatefulWidget {
     this.activeItemId,
     required this.onActionModeChanged,
     required this.onActiveItemChanged,
+    required this.onUseItem,
   });
 
   @override
@@ -83,6 +85,7 @@ class _MatchHudState extends ConsumerState<MatchHud> {
                   actionMode: widget.actionMode,
                   onActionModeChanged: widget.onActionModeChanged,
                   onActiveItemChanged: widget.onActiveItemChanged,
+                  onUseItem: widget.onUseItem,
                 ),
                 const SizedBox(height: 8),
                 // Controls row: hold-to-move + drag hint + end turn

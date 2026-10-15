@@ -97,6 +97,28 @@ class BattlePlayerState {
     required this.shotsHit,
   });
 
+  BattlePlayerState copyWith({int? hp, int? moveEnergy, int? skillEnergy}) =>
+      BattlePlayerState(
+        playerId: playerId,
+        displayName: displayName,
+        teamId: teamId,
+        characterId: characterId,
+        hp: hp ?? this.hp,
+        maxHp: maxHp,
+        defense: defense,
+        position: position,
+        moveEnergy: moveEnergy ?? this.moveEnergy,
+        items: items,
+        statusEffects: statusEffects,
+        isAlive: isAlive,
+        isBot: isBot,
+        skillEnergy: skillEnergy ?? this.skillEnergy,
+        damageDealt: damageDealt,
+        killCount: killCount,
+        shotsFired: shotsFired,
+        shotsHit: shotsHit,
+      );
+
   factory BattlePlayerState.fromJson(Map<String, dynamic> json) =>
       _$BattlePlayerStateFromJson(json);
   Map<String, dynamic> toJson() => _$BattlePlayerStateToJson(this);
@@ -129,6 +151,9 @@ class ProjectileResult {
   final Vector2Model? explosionPoint;
   final double explosionRadius;
   final bool terrainDestroyed;
+  /// Server terrain version after this explosion; 0 when no terrain was destroyed.
+  @JsonKey(defaultValue: 0)
+  final int terrainVersion;
 
   ProjectileResult({
     required this.projectileId,
@@ -139,11 +164,39 @@ class ProjectileResult {
     this.explosionPoint,
     required this.explosionRadius,
     required this.terrainDestroyed,
+    this.terrainVersion = 0,
   });
 
   factory ProjectileResult.fromJson(Map<String, dynamic> json) =>
       _$ProjectileResultFromJson(json);
   Map<String, dynamic> toJson() => _$ProjectileResultToJson(this);
+}
+
+/// Authoritative terrain sent by the server with MatchStarted and MatchStateSync.
+/// [solid] and [destructible] are row-major masks (index = y * width + x),
+/// run-length encoded as alternating air/solid run lengths (starting with air)
+/// written as unsigned varints, then base64 encoded.
+@JsonSerializable()
+class TerrainSnapshot {
+  final int width;
+  final int height;
+  /// Number of server terrain operations already applied to these masks.
+  @JsonKey(defaultValue: 0)
+  final int version;
+  final String solid;
+  final String destructible;
+
+  TerrainSnapshot({
+    required this.width,
+    required this.height,
+    required this.version,
+    required this.solid,
+    required this.destructible,
+  });
+
+  factory TerrainSnapshot.fromJson(Map<String, dynamic> json) =>
+      _$TerrainSnapshotFromJson(json);
+  Map<String, dynamic> toJson() => _$TerrainSnapshotToJson(this);
 }
 
 @JsonSerializable()
@@ -270,12 +323,14 @@ class TurnStartedData {
   final String currentPlayerId;
   final WindState wind;
   final int moveEnergy;
+  final Map<String, int>? skillEnergy; // playerId → skill energy
 
   TurnStartedData({
     required this.turnIndex,
     required this.currentPlayerId,
     required this.wind,
     required this.moveEnergy,
+    this.skillEnergy,
   });
 
   factory TurnStartedData.fromJson(Map<String, dynamic> json) =>

@@ -1,7 +1,8 @@
-import 'dart:math';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:battle_squad_v1/shared/models/match_models.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
@@ -9,67 +10,73 @@ import 'package:flutter/material.dart';
 // TerrainData — pure Dart, no Flame dependency
 // ---------------------------------------------------------------------------
 
+/// Pixel terrain built from the server's [TerrainSnapshot]. The server is the
+/// source of truth; the client only replays explosions on top of a snapshot.
 class TerrainData {
   final int width;
   final int height;
   final String mapId;
 
-  late final Uint8List _mask;
+  late Uint8List _solid;
+  late Uint8List _destructible;
+  int _baseVersion = 0;
+  final Set<int> _appliedVersions = {};
   bool _needsRepaint = true;
 
-  TerrainData({
-    required this.width,
-    required this.height,
-    required this.mapId,
-  }) {
-    _mask = Uint8List(width * height);
-    _generate();
+  TerrainData.fromSnapshot(TerrainSnapshot snapshot, {required this.mapId})
+    : width = snapshot.width,
+      height = snapshot.height {
+    loadSnapshot(snapshot);
   }
 
-  void _generate() {
-    for (int x = 0; x < width; x++) {
-      final terrainHeight = getTerrainHeight(x).round();
-      for (int y = terrainHeight; y < height; y++) {
-        _mask[y * width + x] = 1;
-      }
+  /// Replace the terrain with a newer server snapshot. Explosions with a
+  /// version at or below the snapshot's are already included and get skipped.
+  void loadSnapshot(TerrainSnapshot snapshot) {
+    if (snapshot.width != width || snapshot.height != height) {
+      throw ArgumentError(
+        'snapshot ${snapshot.width}x${snapshot.height} does not match terrain ${width}x$height',
+      );
     }
-  }
-
-  double getTerrainHeight(int x) {
-    switch (mapId) {
-      case 'grassland_valley':
-        return 550 + 100 * sin(x * 0.003) + 40 * sin(x * 0.01);
-      case 'frozen_peak':
-        return 500 + 120 * sin(x * 0.005) + 60 * cos(x * 0.015);
-      case 'steel_base':
-        if ((x > 300 && x < 600) || (x > 1000 && x < 1300)) {
-          return 400;
-        }
-        return 600;
-      default:
-        return 550 + 100 * sin(x * 0.003) + 40 * sin(x * 0.01);
-    }
+    _solid = decodeMaskRle(snapshot.solid, width * height);
+    _destructible = decodeMaskRle(snapshot.destructible, width * height);
+    _baseVersion = snapshot.version;
+    _appliedVersions.clear();
+    markDirty();
   }
 
   bool isSolid(int x, int y) {
     if (x < 0 || x >= width || y < 0 || y >= height) return false;
-    return _mask[y * width + x] == 1;
+    return _solid[y * width + x] == 1;
   }
 
-  void destroyCircle(double cx, double cy, double radius) {
-    // Round center to match server-side DestroyCircle behavior
+  bool isDestructible(int x, int y) {
+    if (x < 0 || x >= width || y < 0 || y >= height) return false;
+    return _destructible[y * width + x] == 1;
+  }
+
+  /// Mirrors server Terrain.DestroyCircle: clears solid pixels inside the
+  /// circle unless they are indestructible. [version] is the server terrain
+  /// version of this explosion; each version is applied at most once.
+  /// Operations commute, so out-of-order application gives the same result.
+  void destroyCircle(double cx, double cy, double radius, {int version = 0}) {
+    if (version > 0) {
+      if (version <= _baseVersion || !_appliedVersions.add(version)) return;
+    }
+
     final icx = cx.round();
     final icy = cy.round();
     final ir = radius.round();
     final r2 = radius * radius;
 
     for (int y = icy - ir; y <= icy + ir; y++) {
+      if (y < 0 || y >= height) continue;
       for (int x = icx - ir; x <= icx + ir; x++) {
-        if (x < 0 || x >= width || y < 0 || y >= height) continue;
+        if (x < 0 || x >= width) continue;
         final dx = (x - icx).toDouble();
         final dy = (y - icy).toDouble();
-        if (dx * dx + dy * dy <= r2) {
-          _mask[y * width + x] = 0;
+        final i = y * width + x;
+        if (dx * dx + dy * dy <= r2 && _destructible[i] == 1) {
+          _solid[i] = 0;
         }
       }
     }
@@ -82,7 +89,7 @@ class TerrainData {
     if (x < 0 || x >= width) return height;
     if (startY < 0) startY = 0;
     for (int y = startY; y < height; y++) {
-      if (_mask[y * width + x] == 1) return y;
+      if (_solid[y * width + x] == 1) return y;
     }
     return height;
   }
@@ -94,6 +101,35 @@ class TerrainData {
   void markDirty() => _needsRepaint = true;
 }
 
+/// Decodes a server terrain mask: base64 of alternating air/solid run lengths
+/// (starting with air) as unsigned LEB128 varints. Returns 1 for solid pixels.
+Uint8List decodeMaskRle(String encoded, int length) {
+  final bytes = base64Decode(encoded);
+  final mask = Uint8List(length);
+  var pos = 0;
+  var solid = false;
+  var i = 0;
+  while (i < bytes.length) {
+    var run = 0;
+    var shift = 0;
+    while (true) {
+      if (i >= bytes.length) throw const FormatException('truncated varint');
+      final b = bytes[i++];
+      run |= (b & 0x7f) << shift;
+      if (b & 0x80 == 0) break;
+      shift += 7;
+    }
+    if (pos + run > length) {
+      throw const FormatException('mask overflows terrain');
+    }
+    if (solid) mask.fillRange(pos, pos + run, 1);
+    pos += run;
+    solid = !solid;
+  }
+  if (pos != length) throw const FormatException('mask shorter than terrain');
+  return mask;
+}
+
 // ---------------------------------------------------------------------------
 // TerrainComponent — Flame rendering component
 // ---------------------------------------------------------------------------
@@ -101,6 +137,7 @@ class TerrainData {
 class TerrainComponent extends PositionComponent {
   final TerrainData terrainData;
   ui.Image? _cachedImage;
+  bool _rebuilding = false;
 
   TerrainComponent(this.terrainData)
       : super(
@@ -116,6 +153,9 @@ class TerrainComponent extends PositionComponent {
   }
 
   Future<void> _rebuildImage() async {
+    // Mark clean before the async work so changes made meanwhile trigger another rebuild.
+    terrainData.markClean();
+    _rebuilding = true;
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     final w = terrainData.width.toDouble();
@@ -127,14 +167,27 @@ class TerrainComponent extends PositionComponent {
       Paint()..color = _skyColor,
     );
 
-    // Terrain pixels — draw contiguous solid segments per column
-    final terrainPaint = Paint()..color = _terrainColor;
+    // Terrain pixels — draw contiguous segments per column; indestructible
+    // pixels get a darker shade so players can tell them apart.
+    final paints = [
+      null,
+      Paint()..color = _terrainColor,
+      Paint()..color = Color.lerp(_terrainColor, Colors.black, 0.45)!,
+    ];
     for (int x = 0; x < terrainData.width; x++) {
-      int? segStart;
-      for (int y = 0; y < terrainData.height; y++) {
-        if (terrainData.isSolid(x, y)) {
-          segStart ??= y;
-        } else if (segStart != null) {
+      int segStart = 0;
+      int segKind = 0;
+      for (int y = 0; y <= terrainData.height; y++) {
+        final kind = y == terrainData.height
+            ? 0
+            : !terrainData.isSolid(x, y)
+            ? 0
+            : terrainData.isDestructible(x, y)
+            ? 1
+            : 2;
+        if (kind == segKind) continue;
+        final paint = paints[segKind];
+        if (paint != null) {
           canvas.drawRect(
             Rect.fromLTWH(
               x.toDouble(),
@@ -142,28 +195,26 @@ class TerrainComponent extends PositionComponent {
               1,
               (y - segStart).toDouble(),
             ),
-            terrainPaint,
+            paint,
           );
-          segStart = null;
         }
-      }
-      // Close segment that extends to bottom
-      if (segStart != null) {
-        canvas.drawRect(
-          Rect.fromLTWH(
-            x.toDouble(),
-            segStart.toDouble(),
-            1,
-            (terrainData.height - segStart).toDouble(),
-          ),
-          terrainPaint,
-        );
+        segStart = y;
+        segKind = kind;
       }
     }
 
     final picture = recorder.endRecording();
-    _cachedImage = await picture.toImage(terrainData.width, terrainData.height);
-    terrainData.markClean();
+    try {
+      final image = await picture.toImage(
+        terrainData.width,
+        terrainData.height,
+      );
+      _cachedImage?.dispose();
+      _cachedImage = image;
+    } finally {
+      picture.dispose();
+      _rebuilding = false;
+    }
   }
 
   Color get _skyColor {
@@ -193,6 +244,13 @@ class TerrainComponent extends PositionComponent {
   }
 
   @override
+  void onRemove() {
+    _cachedImage?.dispose();
+    _cachedImage = null;
+    super.onRemove();
+  }
+
+  @override
   void render(Canvas canvas) {
     if (_cachedImage != null) {
       canvas.drawImage(_cachedImage!, Offset.zero, Paint());
@@ -202,12 +260,8 @@ class TerrainComponent extends PositionComponent {
   @override
   void update(double dt) {
     super.update(dt);
-    if (terrainData.isDirty) {
+    if (terrainData.isDirty && !_rebuilding) {
       _rebuildImage();
     }
-  }
-
-  void onTerrainDestroyed(double cx, double cy, double radius) {
-    terrainData.destroyCircle(cx, cy, radius);
   }
 }

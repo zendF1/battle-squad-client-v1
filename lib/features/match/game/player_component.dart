@@ -150,6 +150,15 @@ class PlayerComponent extends PositionComponent {
     canvas.drawRect(Rect.fromLTWH(0, -8, 32 * ratio, 4), hpPaint);
   }
 
+  /// Apply an authoritative server position immediately (full state sync),
+  /// dropping any in-progress fall or pending server Y.
+  void snapToServer(double x, double y) {
+    position.setValues(x, y);
+    _serverTargetY = null;
+    _isFalling = false;
+    _fallVelocity = 0;
+  }
+
   /// Update from server state. X, HP, isAlive applied immediately.
   /// Y is stored as server target — gravity handles the actual fall.
   void updateFromState({

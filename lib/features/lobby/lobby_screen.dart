@@ -153,7 +153,9 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
         onTimeout: () => throw TimeoutException('Quick play timed out'),
       );
       if (mounted) {
-        ref.read(matchProvider.notifier).setInitialState(matchEvent.state);
+        ref
+            .read(matchProvider.notifier)
+            .setInitialState(matchEvent.state, terrain: matchEvent.terrain);
         context.go('/match');
       }
     } catch (e) {

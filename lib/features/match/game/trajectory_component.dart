@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:flame/components.dart';
+import 'package:flutter/foundation.dart';
 
 /// Renders a dotted trajectory arc using the same physics as the server.
 class TrajectoryComponent extends PositionComponent {
@@ -10,6 +11,12 @@ class TrajectoryComponent extends PositionComponent {
   static const double _windScale = 30.0;
   static const double _timeStep = 0.05;
   static const int _maxSteps = 80; // 4 seconds of flight
+  static const double _boundsMargin = 50;
+
+  final double worldWidth;
+  final double worldHeight;
+
+  TrajectoryComponent({required this.worldWidth, required this.worldHeight});
 
   Vector2 _origin = Vector2.zero();
   double _angleDeg = 45;
@@ -37,7 +44,8 @@ class TrajectoryComponent extends PositionComponent {
     _visible = false;
   }
 
-  List<Vector2> _computePath() {
+  @visibleForTesting
+  List<Vector2> computePath() {
     final angleRad = _angleDeg * pi / 180.0;
     final speed = _power * 6.0;
     var vx = speed * cos(angleRad);
@@ -57,7 +65,11 @@ class TrajectoryComponent extends PositionComponent {
       points.add(Vector2(px, py));
 
       // Stop if out of bounds
-      if (px < -50 || px > 1650 || py > 950) break;
+      if (px < -_boundsMargin ||
+          px > worldWidth + _boundsMargin ||
+          py > worldHeight + _boundsMargin) {
+        break;
+      }
     }
     return points;
   }
@@ -66,7 +78,7 @@ class TrajectoryComponent extends PositionComponent {
   void render(Canvas canvas) {
     if (!_visible) return;
 
-    final points = _computePath();
+    final points = computePath();
     if (points.length < 2) return;
 
     final dotPaint = Paint()
